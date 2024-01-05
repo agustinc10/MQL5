@@ -41,6 +41,7 @@ bool NewBar( string symbol = NULL, int timeframe = 0, bool initToNow = false ) {
    return ( true );
 }
 */
+
 double DoubleToTicks( string symbol, double value ) {
    return ( value / SymbolInfoDouble( symbol, SYMBOL_TRADE_TICK_SIZE ) );
 }
