@@ -64,52 +64,82 @@ struct RANGE_STRUCT
    RANGE_STRUCT(): start_time(0), end_time(0), close_time(0), f_entry(false) {};
 };
 
-RANGE_STRUCT range;
+RANGE_STRUCT trange;
+
+bool CheckInputsTimeRange() {
+   // check for correct input from user
+   /*
+   if (InpRangeClose < 0 && AtrLossMulti == 0) {      // AtrLossMulti as a ATR factor to culculate SL
+      Alert ("Both close time and stop loss are off"); 
+      return false;
+      } 
+   */     
+   if (InpRangeStart < 0 || InpRangeStart >= 1440) {
+      Alert ("Range start < 0 or >= 1440"); 
+      return false;
+      }   
+   if (InpRangeDuration < 0 || InpRangeDuration >= 1440) { 
+      Alert ("Range duration < 0 or >= 1440"); 
+      return false; 
+      } 
+   
+   // Start + Duration Can be bigger than 1 day, so use % to compare that open and close are not the same
+   if (InpRangeClose < -1 || InpRangeClose >= 1440 || (InpRangeStart + InpRangeDuration) % 1440 == InpRangeClose) { 
+      Alert ("Range close < 0 or >= 1440 or end time == close time");
+      return false;
+   }
+   if (InpMonday + InpTuesday + InpWednesday + InpThursday + InpFriday == 0) { 
+      Alert ("Range is prohibited on all days of the week"); 
+      return false;
+   }   
+   
+   return true;
+}
 
 void CalculateRange()
 {
    // Reset all range variables 
-   range.start_time        = 0;
-   range.end_time          = 0;
-   range.close_time        = 0;
-   range.f_entry           = false; 
+   trange.start_time        = 0;
+   trange.end_time          = 0;
+   trange.close_time        = 0;
+   trange.f_entry           = false; 
 
    // calculate range start time
    int time_cycle = 86400;                                                                   // seconds in a day
-   range.start_time = (lastTick.time - (lastTick.time % time_cycle)) + InpRangeStart * 60;   // calculates the start of each day and sums the InpRangeStart
+   trange.start_time = (lastTick.time - (lastTick.time % time_cycle)) + InpRangeStart * 60;   // calculates the start of each day and sums the InpRangeStart
    // for loop to shift the start time to the next working day (skipping saturday and sunday)
    for (int i = 0; i < 8; i++)                                                               
    {
       MqlDateTime tmp;                          // The date type structure contains eight fields of the int type
-      TimeToStruct (range.start_time, tmp);     // Converts a value of datetime type (number of seconds since 01.01.1970) into a structure variable MqlDateTime.
+      TimeToStruct (trange.start_time, tmp);     // Converts a value of datetime type (number of seconds since 01.01.1970) into a structure variable MqlDateTime.
       int dow = tmp.day_of_week;
-      if (lastTick.time >= range.start_time || dow == 6 || dow == 0 
+      if (lastTick.time >= trange.start_time || dow == 6 || dow == 0 
          || (dow == 1 && !InpMonday) || (dow == 2 && !InpTuesday) || (dow == 3 && !InpWednesday) || (dow == 4 && !InpThursday) || (dow == 5 && !InpFriday))
-         range.start_time += time_cycle;       
+         trange.start_time += time_cycle;       
    }
    
    // calculate range end time
-   range.end_time = range.start_time + InpRangeDuration * 60; // If the range end goes to another day and that day is weekend, we have to shift it to monday
+   trange.end_time = trange.start_time + InpRangeDuration * 60; // If the range end goes to another day and that day is weekend, we have to shift it to monday
    for (int i = 0; i < 2; i++)
    {
       MqlDateTime tmp;                        // The date type structure contains eight fields of the int type
-      TimeToStruct (range.end_time, tmp);     // Converts a value of datetime type (number of seconds since 01.01.1970) into a structure variable MqlDateTime.
+      TimeToStruct (trange.end_time, tmp);     // Converts a value of datetime type (number of seconds since 01.01.1970) into a structure variable MqlDateTime.
       int dow = tmp.day_of_week;
       if (dow == 6 || dow == 0)
-         range.end_time += time_cycle;       
+         trange.end_time += time_cycle;       
    }
 
    // calculate range close
    if(InpRangeClose >= 0)
    {
-      range.close_time = (range.end_time - (range.end_time % time_cycle)) + InpRangeClose * 60;   // calculates the close of each day and sums the InpRangeClose
+      trange.close_time = (trange.end_time - (trange.end_time % time_cycle)) + InpRangeClose * 60;   // calculates the close of each day and sums the InpRangeClose
       for (int i = 0; i < 3; i++)
       {
          MqlDateTime tmp;                        // The date type structure contains eight fields of the int type
-         TimeToStruct (range.close_time, tmp);     // Converts a value of datetime type (number of seconds since 01.01.1970) into a structure variable MqlDateTime.
+         TimeToStruct (trange.close_time, tmp);     // Converts a value of datetime type (number of seconds since 01.01.1970) into a structure variable MqlDateTime.
          int dow = tmp.day_of_week;
-         if (range.close_time <= range.end_time || dow == 6 || dow == 0)
-            range.close_time += time_cycle;       
+         if (trange.close_time <= trange.end_time || dow == 6 || dow == 0)
+            trange.close_time += time_cycle;       
       }
    }
    // draw object
@@ -125,10 +155,10 @@ void DrawObjects()
 {
    // start time
    ObjectDelete(NULL, "range start");     // We always want to draw a new start time
-   if (range.start_time > 0)               // Check if there is a start time calculated
+   if (trange.start_time > 0)               // Check if there is a start time calculated
    {
-      ObjectCreate(NULL, "range start", OBJ_VLINE, 0, range.start_time, 0);         // Create a vertical line in the current chart named "range start" at range.start_time
-      ObjectSetString(NULL, "range start", OBJPROP_TOOLTIP, "start of the range \n" + TimeToString(range.start_time, TIME_DATE|TIME_MINUTES));  // Set description for the object
+      ObjectCreate(NULL, "range start", OBJ_VLINE, 0, trange.start_time, 0);         // Create a vertical line in the current chart named "range start" at range.start_time
+      ObjectSetString(NULL, "range start", OBJPROP_TOOLTIP, "start of the range \n" + TimeToString(trange.start_time, TIME_DATE|TIME_MINUTES));  // Set description for the object
       ObjectSetInteger(NULL, "range start", OBJPROP_COLOR, clrBlue);                // Change Color
       ObjectSetInteger(NULL, "range start", OBJPROP_WIDTH, 2);                      // Change width of drawing
       ObjectSetInteger(NULL, "range start", OBJPROP_BACK, true);                    // Set object to background                 
@@ -136,10 +166,10 @@ void DrawObjects()
    
    // end time
    ObjectDelete(NULL, "range end");     // We always want to draw a new end time
-   if (range.end_time > 0)               // Check if there is a end time calculated
+   if (trange.end_time > 0)               // Check if there is a end time calculated
    {
-      ObjectCreate(NULL, "range end", OBJ_VLINE, 0, range.end_time, 0);           // Create a vertical line in the current chart named "range end" at range.end_time
-      ObjectSetString(NULL, "range end", OBJPROP_TOOLTIP, "end of the range \n" + TimeToString(range.end_time, TIME_DATE|TIME_MINUTES));  // Set description for the object
+      ObjectCreate(NULL, "range end", OBJ_VLINE, 0, trange.end_time, 0);           // Create a vertical line in the current chart named "range end" at range.end_time
+      ObjectSetString(NULL, "range end", OBJPROP_TOOLTIP, "end of the range \n" + TimeToString(trange.end_time, TIME_DATE|TIME_MINUTES));  // Set description for the object
       ObjectSetInteger(NULL, "range end", OBJPROP_COLOR, clrBlue);                // Change Color
       ObjectSetInteger(NULL, "range end", OBJPROP_WIDTH, 2);                      // Change width of drawing
       ObjectSetInteger(NULL, "range end", OBJPROP_BACK, true);                    // Set object to background                 
@@ -147,10 +177,10 @@ void DrawObjects()
 
    // close time
    ObjectDelete(NULL, "range close");     // We always want to draw a new close time
-   if (range.close_time > 0)               // Check if there is a close time calculated
+   if (trange.close_time > 0)               // Check if there is a close time calculated
    {
-      ObjectCreate(NULL, "range close", OBJ_VLINE, 0, range.close_time, 0);         // Create a vertical line in the current chart named "range close" at range.close_time
-      ObjectSetString(NULL, "range close", OBJPROP_TOOLTIP, "close of the range \n" + TimeToString(range.close_time, TIME_DATE|TIME_MINUTES));  // Set description for the object
+      ObjectCreate(NULL, "range close", OBJ_VLINE, 0, trange.close_time, 0);         // Create a vertical line in the current chart named "range close" at range.close_time
+      ObjectSetString(NULL, "range close", OBJPROP_TOOLTIP, "close of the range \n" + TimeToString(trange.close_time, TIME_DATE|TIME_MINUTES));  // Set description for the object
       ObjectSetInteger(NULL, "range close", OBJPROP_COLOR, clrRed);                 // Change Color
       ObjectSetInteger(NULL, "range close", OBJPROP_WIDTH, 2);                      // Change width of drawing
       ObjectSetInteger(NULL, "range close", OBJPROP_BACK, true);                    // Set object to background                 
