@@ -20,7 +20,7 @@
 
 #property link          "https://github.com/agustinc10"
 #property description   "multisymbol_a1"
-#property version   "1.00"
+#property version       "1.00"
 
 //+------------------------------------------------------------------+
 //| Expert Setup                                                     |
