@@ -44,10 +44,11 @@ input double puntos_entrada = 0;        // puntos de desfasaje en Entrada
 input double puntos_salida  = 0;        // puntos de desfasaje en Salida
 
 // INCLUDES
+#include <Indicators/Trend.mqh>
+#include <Indicators/Oscilators.mqh> 
 #include "TimeRange.mqh"
    // Para poder usar esta función, en el EA tengo que crear las siguientes variables:
        MqlTick prevTick, lastTick;
-
 
 input group "==== Bar Processing ===="
 enum ENUM_BAR_PROCESSING_METHOD
@@ -67,7 +68,8 @@ datetime TimeLastTickProcessed   = D'1971.01.01 00:00';  //Used to control the p
 int      iBarToUseForProcessing;        //This will either be bar 0 or bar 1, and depends on the BarProcessingMethod - Set in OnInit()
 
 input group "==== Stochastic Inputs ===="
-// input ENUM_TIMEFRAMES InpTimeFrame2 = PERIOD_H4;        // Timeframe mayor
+CiStochastic* Stochastic;
+
 input int InpStochKPeriod = 14;                           // %K for the Stochastic
 input int InpStochDPeriod = 3;                            // %D for the Stochastic
 input int InpStochSlowing = 1;                            // Slowing for the Stochastic
@@ -75,6 +77,10 @@ input int InpStochOB = 80;
 input int InpStochOS = 20;
 
 input group "==== MA Inputs ===="
+CiMA* Fast_MA;
+CiMA* Slow_MA;
+CiMA* USlow_MA;
+
 input int InpFastMA          = 10;    // fast period Base
 input int InpSlowMA          = 20;    // slow period Base
 input int InpUSlowMA         = 50;    // ultra slow period Base
@@ -84,9 +90,15 @@ input int InpAroonPeriod = 100;                          // period of the Aroon 
 input int InpAroonShift  = 0;                            // horizontal shift of the indicator in bars
 input double AroonMin= 70;       // Valor de Aroon para indicar tendencia.
 input double AroonMax= 100;       // Valor max de Aroon para habilitar entrada.
+int Aroon_Handle;
+double AroonUp_Buffer[];    
+double AroonDown_Buffer[];  
 
 input group "==== Atr Inputs ===="
 input int InpAtrPeriod = 14;     // ATR Period
+int Atr_Handle;
+double Atr_Buffer[];
+double AtrCurrent;
 
 // input int InpPosTimer= 600;    // Minutes for Position close 
 
@@ -95,35 +107,15 @@ input int InpAtrPeriod = 14;     // ATR Period
 const string IndicatorName = "Agustin\\AC_Aroon"; // Credit to Darwinex / TradeLikeAMachine
 
 //+------------------------------------------------------------------+
-//| Global variables                                                 |
+//| Other Global variables                                           |
 //+------------------------------------------------------------------+
-// Get indicator values 
-int Stoch_Handle;
-int fast_MA_Handle;
-int slow_MA_Handle;
-int uslow_MA_Handle;
-int Aroon_Handle;
-int Atr_Handle;
-
-double StochK_Buffer[];
-double StochD_Buffer[];
-
-double fast_MA_Buffer[];  
-double slow_MA_Buffer[];  
-double uslow_MA_Buffer[];
-
-double AroonUp_Buffer[];    
-double AroonDown_Buffer[];  
-double Atr_Buffer[];
 
 double Open[];
 double High[];
 double Low[];
 double Close[];
 
-double AtrCurrent;
-
-int FlagTendencia = 0;  // Flag de Tendencia
+int FlagAroon = 0;  // Flag de Tendencia
 int FlagOB = 0;         // Flag OverBought
 int FlagOS = 0;         // Flag OverSold
 int FlagMA = 0;         // Flag Orden de Medias Móviles
@@ -132,8 +124,9 @@ int FlagLastTrade = 0;
 
 datetime OpenTradeTime; // Stores the last time a trade was opened
 
-
 int OnInit(){ 
+   
+   trade.SetExpertMagicNumber(InpMagicNumber);
    //################################
    //Determine which bar we will used (0 or 1) to perform processing of data
    //################################
@@ -154,16 +147,14 @@ int OnInit(){
    //## YOUR OWN CODE HERE ##
    if (!CheckInputs()) return INIT_PARAMETERS_INCORRECT; // check correct input from user
    trade.SetExpertMagicNumber(InpMagicNumber);           // set magicnumber   
-   if (!SetHandles()) return INIT_FAILED;                // set handles 
 
-   ArraySetAsSeries(StochK_Buffer,true); 
-   ArraySetAsSeries(StochD_Buffer,true); 
-   ArraySetAsSeries(fast_MA_Buffer,true);  
-   ArraySetAsSeries(slow_MA_Buffer,true);  
-   ArraySetAsSeries(uslow_MA_Buffer,true);  
+   if (!InstantiateIndicators()) return (INIT_FAILED);   // instantiate indicators
+   if (!SetHandles()) return INIT_FAILED;                // set handles of other indicators
+
    ArraySetAsSeries(AroonUp_Buffer,true);                
    ArraySetAsSeries(AroonDown_Buffer,true);
    ArraySetAsSeries(Atr_Buffer,true);
+   
    ArraySetAsSeries(Open,true);
    ArraySetAsSeries(High,true);
    ArraySetAsSeries(Low,true);
@@ -177,13 +168,17 @@ int OnInit(){
 }
 
 void OnDeinit(const int reason){
-   if (Stoch_Handle    != INVALID_HANDLE) { IndicatorRelease(Stoch_Handle); }
-   if (fast_MA_Handle  != INVALID_HANDLE) { IndicatorRelease(fast_MA_Handle); }
-   if (slow_MA_Handle  != INVALID_HANDLE) { IndicatorRelease(slow_MA_Handle); }
-   if (uslow_MA_Handle != INVALID_HANDLE) { IndicatorRelease(uslow_MA_Handle); }
    if (Aroon_Handle    != INVALID_HANDLE) { IndicatorRelease(Aroon_Handle); }
    if (Atr_Handle      != INVALID_HANDLE) { IndicatorRelease(Atr_Handle); }
+   
    Print("Handles released");
+
+   delete Fast_MA;
+   delete Slow_MA;
+   delete USlow_MA;
+   delete Stochastic;
+   Print ("Free Indicators memory");
+
    Comment("");
 }
 
@@ -221,8 +216,13 @@ void OnTick(){
    if(ProcessThisIteration == true)
    {
       TicksProcessedCount++;
-      copy_buffers();  
+      copy_buffers();         // Copy buffers 
       
+      Fast_MA.Refresh(-1);    // Update indicator data
+      Slow_MA.Refresh(-1);
+      USlow_MA.Refresh(-1);
+      Stochastic.Refresh(-1);
+
       // Get current tick
       prevTick = lastTick;
       SymbolInfoTick(_Symbol, lastTick); 
@@ -240,8 +240,7 @@ void OnTick(){
          else Print ("Close because out of trange");
       }  
 
-      flagtendencia();
-      flagrango();
+      flagAroon();
       flagMA();
 
       ClosePositions(POSITION_TYPE_BUY);   
@@ -333,15 +332,11 @@ void comments(){
            "[0]:   ", NormalizeDouble(Open[0], _Digits), "   /   ", NormalizeDouble(High[0], _Digits), "   /   ", NormalizeDouble(Low[0], _Digits), "   /   ", NormalizeDouble(Close[0], _Digits),"\n",
            "[1]:   ", NormalizeDouble(Open[1], _Digits), "   /   ", NormalizeDouble(High[1], _Digits), "   /   ", NormalizeDouble(Low[1], _Digits), "   /   ", NormalizeDouble(Close[1], _Digits),"\n",
            "[2]:   ", NormalizeDouble(Open[2], _Digits), "   /   ", NormalizeDouble(High[2], _Digits), "   /   ", NormalizeDouble(Low[2], _Digits), "   /   ", NormalizeDouble(Close[2], _Digits),"\n",
-           "[3]:   ", NormalizeDouble(Open[3], _Digits), "   /   ", NormalizeDouble(High[3], _Digits), "   /   ", NormalizeDouble(Low[3], _Digits), "   /   ", NormalizeDouble(Close[3], _Digits),"\n\n",
-           "FastMA[1]        = ", fast_MA_Buffer[1], "\n",
-           "SlowMA[1]        = ", slow_MA_Buffer[1], "\n\n",           
+           "[3]:   ", NormalizeDouble(Open[3], _Digits), "   /   ", NormalizeDouble(High[3], _Digits), "   /   ", NormalizeDouble(Low[3], _Digits), "   /   ", NormalizeDouble(Close[3], _Digits),"\n\n",           
            "OpenOrder?       ", openorder(),"\n\n",
            "OpenPositions:   ", CountOpenPosition(InpMagicNumber), "\n",
-           "%K =              ", NormalizeDouble(StochK_Buffer[1], 2), "\n",
-           "%D =              ", NormalizeDouble(StochD_Buffer[1], 2),"\n",
-           "FlagOB          ", FlagOB,"\n",
-           "FlagOS          ", FlagOS); 
+           "%K =              ", NormalizeDouble(Stochastic.Main(1), 2), "\n",
+           "%D =              ", NormalizeDouble(Stochastic.Signal(1), 2),"\n");
 }
 
 // CHECK INPUTS 
@@ -361,19 +356,44 @@ bool CheckInputs() {
    return true;
 }
 
+// Instantiate new instance of indicators 
+bool InstantiateIndicators(){
+   // ### Declare and initialise indicator handle ###
+   ResetLastError();
+   //INSTATIATE NEW INSTANCE OF MA CLASS
+   Fast_MA = new CiMA();   
+   if(!Fast_MA.Create(_Symbol, TradeTimeframe, InpFastMA, 0, MODE_SMA, PRICE_CLOSE)) {
+      MessageBox("Failed to create new class instance (error code: " + IntegerToString(GetLastError()) + ")");
+      //Don't proceed
+      return false;
+   }      
+   Slow_MA = new CiMA();   
+   if(!Slow_MA.Create(_Symbol, TradeTimeframe, InpSlowMA, 0, MODE_SMA, PRICE_CLOSE)) {
+      MessageBox("Failed to create new class instance (error code: " + IntegerToString(GetLastError()) + ")");
+      //Don't proceed
+      return false;
+   }      
+   USlow_MA = new CiMA();   
+   if(!USlow_MA.Create(_Symbol, TradeTimeframe, InpUSlowMA, 0, MODE_SMA, PRICE_CLOSE)) {
+      MessageBox("Failed to create new class instance (error code: " + IntegerToString(GetLastError()) + ")");
+      //Don't proceed
+      return false;
+   }      
+   Print("MA instances successfully created");
+   
+   Stochastic = new CiStochastic();   
+   if(!Stochastic.Create(_Symbol, TradeTimeframe, InpStochKPeriod, InpStochDPeriod, InpStochSlowing, MODE_SMA, STO_LOWHIGH)) {
+      MessageBox("Failed to create new class instance (error code: " + IntegerToString(GetLastError()) + ")");
+      //Don't proceed
+      return false;
+   }      
+   Print("Stochastic instance successfully created");
+   return true;
+}
+
 // SET HANNDLES 
 bool SetHandles() {
-   // set Handles only once in the OnInit function and check if function failed
-   Stoch_Handle = iStochastic(Symbol(), TradeTimeframe, InpStochKPeriod, InpStochDPeriod, InpStochSlowing, MODE_SMA, STO_LOWHIGH);
-   if (Stoch_Handle == INVALID_HANDLE) { Alert("Failed to create Stochastic Handle"); return false; }
-   
-   fast_MA_Handle = iMA(Symbol(),TradeTimeframe, InpFastMA,0,MODE_SMA,PRICE_CLOSE);
-   if (fast_MA_Handle == INVALID_HANDLE) { Alert("Failed to create Fast MA Handle"); return false; }
-   slow_MA_Handle = iMA(_Symbol,TradeTimeframe, InpSlowMA,0,MODE_SMA,PRICE_CLOSE);
-   if (slow_MA_Handle == INVALID_HANDLE) { Alert("Failed to create Slow MA Handle"); return false; }
-   uslow_MA_Handle = iMA(_Symbol,TradeTimeframe, InpUSlowMA,0,MODE_SMA,PRICE_CLOSE);
-   if (uslow_MA_Handle == INVALID_HANDLE) { Alert("Failed to create uSlow MA Handle"); return false; }
-
+   // set Handles only once in the OnInit function and check if function failed      
    Aroon_Handle = iCustom(Symbol(), TradeTimeframe, IndicatorName, InpAroonPeriod, InpAroonShift);
    if (Aroon_Handle == INVALID_HANDLE) { Alert("Failed to create Aroon Handle"); return false; }
 
@@ -392,22 +412,7 @@ void copy_buffers(){
    const int Index            = 0; 
    
    //Get indicator values
-   int values = CopyBuffer(Stoch_Handle, 0, StartCandle, RequiredCandles, StochK_Buffer);  
-   if (values != RequiredCandles){ Print("Not enough data for Stochastic Main"); return;}
-
-   values = CopyBuffer(Stoch_Handle, 1, StartCandle, RequiredCandles, StochD_Buffer);  
-   if (values != RequiredCandles){ Print("Not enough data for Stochastic Signal"); return;}
-
-   values = CopyBuffer(fast_MA_Handle, Index, StartCandle, RequiredCandles, fast_MA_Buffer);   
-   if (values!= RequiredCandles){ Print("Not enough data for fast_MA"); return;}   
-
-   values = CopyBuffer(slow_MA_Handle, Index, StartCandle, RequiredCandles, slow_MA_Buffer);  
-   if (values!= RequiredCandles){ Print("Not enough data for slow_MA"); return;}
-
-   values = CopyBuffer(uslow_MA_Handle, Index, StartCandle, RequiredCandles, uslow_MA_Buffer);  
-   if (values!= RequiredCandles){ Print("Not enough data for uslow_MA"); return;}
-
-   values = CopyBuffer(Aroon_Handle, 0, StartCandle, RequiredCandles, AroonUp_Buffer);  
+   int values = CopyBuffer(Aroon_Handle, 0, StartCandle, RequiredCandles, AroonUp_Buffer);  
    if (values != RequiredCandles){ Print("Not enough data for AroonUp"); return;}
 
    values = CopyBuffer(Aroon_Handle, 1, StartCandle, RequiredCandles, AroonDown_Buffer);  
@@ -428,67 +433,35 @@ void copy_buffers(){
 }
 
 // CHECK TENDENCIA 
-int flagtendencia(){
+int flagAroon(){
    if (AroonUp_Buffer[1] > AroonMin
       && AroonDown_Buffer[1] < AroonMin){
-      FlagTendencia = 1;                                     // Set Flag de tendencia alcista
+      FlagAroon = 1;                                     // Set Flag de tendencia alcista
    }
    if (AroonDown_Buffer[1] > AroonMin
       && AroonUp_Buffer[1] < AroonMin){
-      FlagTendencia = -1;                                    // Set Flag de tendencia bajista
+      FlagAroon = -1;                                    // Set Flag de tendencia bajista
    }   
-   if (FlagTendencia == 1 && (AroonUp_Buffer[1] < AroonMin || AroonDown_Buffer[1] > AroonMin)) {
-      FlagTendencia = 0;                                    // Reset Tendencia
+   if (FlagAroon == 1 && (AroonUp_Buffer[1] < AroonMin || AroonDown_Buffer[1] > AroonMin)) {
+      FlagAroon = 0;                                    // Reset Tendencia
       }   
-   if (FlagTendencia == -1 && (AroonDown_Buffer[1] < AroonMin || AroonUp_Buffer[1] > AroonMin)) {
-      FlagTendencia = 0;                                    // Reset Tendencia
+   if (FlagAroon == -1 && (AroonDown_Buffer[1] < AroonMin || AroonUp_Buffer[1] > AroonMin)) {
+      FlagAroon = 0;                                    // Reset Tendencia
       }         
-   return FlagTendencia;
-}
-
-// CHECK RANGO
-void flagrango(){
-   double StochK = NormalizeDouble(StochK_Buffer[1], 2);
-   double StochD1 = NormalizeDouble(StochD_Buffer[1], 2);
-   double StochD2 = NormalizeDouble(StochD_Buffer[2], 2);
-   double fast_MA = NormalizeDouble(fast_MA_Buffer[1], _Digits);
-   double slow_MA = NormalizeDouble(slow_MA_Buffer[1], _Digits);
-   double uslow_MA = NormalizeDouble(uslow_MA_Buffer[1], _Digits);
-
-   // Flag Seobrecompra (habilita BUY en la próxima sobreventa)
-   //if (StochK > InpStochOB)
-     // FlagOB = 1;                                    
-   if (StochK > InpStochOB && Low[1] > fast_MA && Low[1] > slow_MA && Low[1] > uslow_MA)
-      FlagOB = 2;
-   //if (FlagOB == 1 && StochK < InpStochOB)
-   //   FlagOB = 0;
-
-   if (FlagOB == 2 && StochD2 < InpStochOS && StochD1 > InpStochOS)
-      FlagOB = 0;
-
-   // Flag Sobreventa (habilita SELL en la próximo sobrecompra)
-   //if (StochK < InpStochOS)
-     // FlagOS = 1;                                    
-   if (StochK < InpStochOS && High[1] < fast_MA && High[1] < slow_MA && High[1] < uslow_MA )
-      FlagOS = 2;
-   //if (FlagOS == -1 && StochK > InpStochOS)
-    //FlagOS = 0;
-   if (FlagOS == 2 && StochD2 > InpStochOB && StochD1 < InpStochOB)
-      FlagOS = 0;
-
+   return FlagAroon;
 }
 
 void flagMA(){
-   double fast_MA = NormalizeDouble(fast_MA_Buffer[1], _Digits);
-   double slow_MA = NormalizeDouble(slow_MA_Buffer[1], _Digits);
-   double uslow_MA = NormalizeDouble(uslow_MA_Buffer[1], _Digits);
-   
+   double Fast_MA1 = NormalizeDouble(Fast_MA.Main(1), _Digits);
+   double Slow_MA1 = NormalizeDouble(Slow_MA.Main(1), _Digits);
+   double USlow_MA1 = NormalizeDouble(USlow_MA.Main(1), _Digits);
+
    // Ordenadas Compra
-   if (fast_MA > slow_MA
+   if (Fast_MA1 > Slow_MA1
       //&& slow_MA > uslow_MA
    )
       FlagMA = 1;                                    
-   if (fast_MA < slow_MA
+   if (Fast_MA1 < Slow_MA1
       //&& slow_MA < uslow_MA
    )
       FlagMA = -1;                                    
@@ -496,64 +469,27 @@ void flagMA(){
    else FlagMA = 0;
 }
 
-
-// CONDICIONES BUY & SELL
-/*string openorder(){
-   double StochK1 = NormalizeDouble(StochK_Buffer[1], 2);
-   double StochK2 = NormalizeDouble(StochK_Buffer[2], 2);
-   double StochD1 = NormalizeDouble(StochD_Buffer[1], 2);
-   double StochD2 = NormalizeDouble(StochD_Buffer[2], 2);
-   double fast_MA = NormalizeDouble(fast_MA_Buffer[1], _Digits);
-   double slow_MA = NormalizeDouble(slow_MA_Buffer[1], _Digits);
-   double uslow_MA = NormalizeDouble(uslow_MA_Buffer[1], _Digits);
-
-   // check BUY conditions   
-   if (FlagOB == 2 
-      && StochD1 < InpStochOS 
-      // && StochK2 < InpStochOS && StochK1 > InpStochOS
-      && High[1] < fast_MA && High[1] < slow_MA && High[1] < uslow_MA
-      // && Close[1] < fast_MA && Close[1] < slow_MA && Open[1] < fast_MA && Open[1] < slow_MA
-      && FlagMA != -1
-      )
-      return "buy"; 
-           
-   else // check SELL conditions 
-   if (FlagOS == 2 
-      && StochD1 > InpStochOB
-      // && StochK2 > InpStochOB && StochK1 < InpStochOB
-      && Low[1] > fast_MA && Low[1] > slow_MA && Low[1] > uslow_MA 
-      //&& Close[1] > fast_MA && Close[1] > slow_MA && Open[1] > fast_MA && Open[1] > slow_MA
-      && FlagMA != 1 
-      )
-      return "sell"; 
-   else
-      return "no order";
-}
-*/
 string openorder(){
-   double StochK1 = NormalizeDouble(StochK_Buffer[1], 2);
-   double StochK2 = NormalizeDouble(StochK_Buffer[2], 2);
-   double StochD1 = NormalizeDouble(StochD_Buffer[1], 2);
-   double StochD2 = NormalizeDouble(StochD_Buffer[2], 2);
-   double fast_MA = NormalizeDouble(fast_MA_Buffer[1], _Digits);
-   double slow_MA = NormalizeDouble(slow_MA_Buffer[1], _Digits);
-   double uslow_MA = NormalizeDouble(uslow_MA_Buffer[1], _Digits);
-
+   double StochK1 = NormalizeDouble(Stochastic.Main(1), 2);
+   double StochK2 = NormalizeDouble(Stochastic.Main(2), 2);
+   double StochD1 = NormalizeDouble(Stochastic.Signal(1), 2);
+   double StochD2 = NormalizeDouble(Stochastic.Signal(2), 2);
+   
    // check BUY conditions   
    if (StochK2 < InpStochOS 
       && StochK1 > InpStochOS
       // && StochK2 < StochK1
-      //&& FlagTendencia == 1      
-      //&& FlagMA == 1
-      //&& High[1] < fast_MA
+      // && FlagAroon == 1      
+      && FlagMA == 1
+      // && High[1] < fast_MA
       )
       return "buy"; 
    else // check SELL conditions 
    if (StochK2 > InpStochOB
       && StochK1 < InpStochOB
       //&& StochK2 > StochK1 
-      //&& FlagTendencia == -1
-      //&& FlagMA == -1
+      //&& FlagAroon == -1
+      && FlagMA == -1
       // && Low[1] > fast_MA
       )
       return "sell"; 
@@ -563,10 +499,10 @@ string openorder(){
 
 // CONDICIONES CLOSE
 bool closecondLONG(){
-   double StochK1 = NormalizeDouble(StochK_Buffer[1], 2);
-   double StochK2 = NormalizeDouble(StochK_Buffer[2], 2);
-   double StochD1 = NormalizeDouble(StochD_Buffer[1], 2);
-   double StochD2 = NormalizeDouble(StochD_Buffer[2], 2); 
+   double StochK1 = NormalizeDouble(Stochastic.Main(1), 2);
+   double StochK2 = NormalizeDouble(Stochastic.Main(2), 2);
+   double StochD1 = NormalizeDouble(Stochastic.Signal(1), 2);
+   double StochD2 = NormalizeDouble(Stochastic.Signal(2), 2);
    if (StochK1 > InpStochOB 
       //|| StochK1 < InpStochOS
      // || (StochD2 > InpStochOS && StochD1 < InpStochOS)
@@ -576,10 +512,10 @@ bool closecondLONG(){
    else return false;
 }
 bool closecondSHORT(){
-   double StochK1 = NormalizeDouble(StochK_Buffer[1], 2);
-   double StochK2 = NormalizeDouble(StochK_Buffer[2], 2);
-   double StochD1 = NormalizeDouble(StochD_Buffer[1], 2);
-   double StochD2 = NormalizeDouble(StochD_Buffer[2], 2);
+   double StochK1 = NormalizeDouble(Stochastic.Main(1), 2);
+   double StochK2 = NormalizeDouble(Stochastic.Main(2), 2);
+   double StochD1 = NormalizeDouble(Stochastic.Signal(1), 2);
+   double StochD2 = NormalizeDouble(Stochastic.Signal(2), 2);
    if (StochK1 < InpStochOS
       //|| StochK1 > InpStochOB
      // || (StochD2 < InpStochOB && StochD1 > InpStochOB)
