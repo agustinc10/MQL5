@@ -4,7 +4,7 @@
 //|                                Based on Dillon Grech / Darwinex  |
 //+------------------------------------------------------------------+
 
-//+--------------------------------------------------------------------------------+|
+//+--------------------------------------------------------------------------------+
 //| DISCLAIMER AND TERMS OF USE OF THIS EXPERT ADVISOR                             |
 //| THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"    |
 //| AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE      |
@@ -352,7 +352,7 @@ bool SetUpIndicatorHandles(){
    }
    Print("Handle for " + indicator + " for all Symbols successfully created"); 
 
-      //Set up ATR Handle for Multi-Symbol EA
+   //Set up ATR Handle for Multi-Symbol EA
    for(int SymbolLoop=0; SymbolLoop < NumberOfTradeableSymbols; SymbolLoop++)
    {
       ResetLastError();
