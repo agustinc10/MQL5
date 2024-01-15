@@ -99,8 +99,6 @@ input int InpFastMA  = 10;    // fast period Base
 input int InpSlowMA  = 20;    // slow period Base
 input int InpUSlowMA = 50;    // ultra slow period Base
 
-CiMA* MAIndicator[]
-
 // Indicator 3 Variables
 input group "==== ATR Inputs ===="
 int       AtrHandle[];
