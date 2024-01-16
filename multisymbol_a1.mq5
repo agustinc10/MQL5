@@ -115,6 +115,9 @@ string SymbolMetrics[];
 string ExpertComments = "";
 string CloseSignalStatus = "";
 
+// CUSTOM METRICS
+#include "CustomMetrics.mqh"
+
 int OnInit(){
    if (!CheckInputs()) return INIT_PARAMETERS_INCORRECT; // check correct input from user
    //Declare magic number for all trades
@@ -172,12 +175,13 @@ int OnInit(){
    //Set Up Multi-Symbol Handles for Indicators
    if (!SetUpIndicatorHandles()) return(INIT_FAILED);
    
+   if (OnInitCustomMetrics() != 0) return INIT_PARAMETERS_INCORRECT;
    return(INIT_SUCCEEDED);
 }
 
 void OnDeinit(const int reason){
    //Release Indicator Arrays
-   ReleaseIndicatorArrays();
+   ReleaseIndicatorHandles();
    Comment("");
 }
 
@@ -260,7 +264,9 @@ void OnTick(){
             "Symbols Traded:\n\r", 
             ExpertComments
             );
-   }            
+   }
+
+   OnTickCustomMetrics();         
 }
 
 //+------------------------------------------------------------------+
@@ -285,7 +291,7 @@ void ResizeIndicatorArrays(){
 }
 
 // Release indicator handles from Metatrader cache for multi-symbol EA
-void ReleaseIndicatorArrays(){
+void ReleaseIndicatorHandles(){
    for(int SymbolLoop=0; SymbolLoop < NumberOfTradeableSymbols; SymbolLoop++)
    {
       IndicatorRelease(StochHandle[SymbolLoop]);
