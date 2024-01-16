@@ -1,7 +1,7 @@
 //+------------------------------------------------------------------+
 //|                                                CustomMetrics.mqh |
 //|                                                          AC_2024 |
-//|                               Based on Darwinex / Tlam Template  |
+//|                                Based on Darwinex / Tlam Template |
 //+------------------------------------------------------------------+
 
 //+--------------------------------------------------------------------------------+
@@ -69,7 +69,7 @@ double   EquityHistoryArray[];                  // Used to store equity at inter
 double   StartingEquity;                        // Stores the Starting Equity (i.e. the deposit amount at the beginning of the backtest)
 datetime BackTestFirstDate;                     // Used in the CAGR/MeanDD Calc
 datetime BackTestFinalDate;                     // Used in the CAGR/MeanDD Calc
-
+MqlDateTime dealTime;
 int OnInitCustomMetrics(){
    //## YOUR OWN CODE HERE ##
 
@@ -466,9 +466,9 @@ if(DiagnosticLogLevel >= 1){
    outputFileHandle = FileOpen(outputFileName, FILE_WRITE|FILE_CSV, "\t");
    FileWrite(outputFileHandle, "LIST OF DEALS IS BACKTEST");   
    FileWrite(outputFileHandle, "TICKET", "DEAL_ORDER", "DEAL_POSITION_ID", "DEAL_SYMBOL", "DEAL_TYPE", 
-                                 "DEAL_ENTRY", "DEAL_REASON", "DEAL_TIME", "DEAL_VOLUME", "DEAL_PRICE", "DEAL_SL", "DEAL_TP", 
-                                 "DEAL_COMMISSION", "DEAL_SWAP", "DEAL_PROFIT", 
-                                 "RFACTOR", "DEAL_MAGIC", "DEAL_COMMENT");
+                                 "DEAL_ENTRY", "DEAL_REASON", "DEAL_TIME", "DEAL_DAY_OF_WEEK", "DEAL_VOLUME", "DEAL_PRICE", 
+                                 "DEAL_SL", "DEAL_TP", "DEAL_COMMISSION", "DEAL_SWAP", "DEAL_PROFIT", 
+                                 "DEAL_RR_FACTOR", "DEAL_MAGIC", "DEAL_COMMENT");
    }
 }
 
@@ -477,6 +477,13 @@ void OutputMainData(int DiagnosticLogLevel, int outputFileHandle, ulong dealTick
    if(DiagnosticLogLevel >= 1){
       string symbol = HistoryDealGetString(dealTicket, DEAL_SYMBOL);
       long dealPositionID = HistoryDealGetInteger(dealTicket, DEAL_POSITION_ID);
+
+      long tmp;
+      HistoryDealGetInteger(dealTicket, DEAL_TIME, tmp);
+      TimeToStruct(tmp, dealTime);
+      int dow = dealTime.day_of_week;
+      ENUM_DAY_OF_WEEK day_of_week = ENUM_DAY_OF_WEEK (dow);
+
       double Rfactor = 0;
       if (HistoryDealGetInteger(dealTicket, DEAL_ENTRY) == DEAL_ENTRY_OUT) 
          Rfactor = (HistoryDealGetDouble(dealTicket, DEAL_PRICE) - HistoryDealGetDouble(dealPositionID, DEAL_PRICE)) / (HistoryDealGetDouble(dealPositionID, DEAL_PRICE) - HistoryDealGetDouble(dealTicket, DEAL_SL));
@@ -489,6 +496,8 @@ void OutputMainData(int DiagnosticLogLevel, int outputFileHandle, ulong dealTick
                                     EnumToString((ENUM_DEAL_ENTRY)HistoryDealGetInteger(dealTicket, DEAL_ENTRY)),
                                     EnumToString((ENUM_DEAL_REASON)HistoryDealGetInteger(dealTicket, DEAL_REASON)),
                                     TimeToString((datetime)HistoryDealGetInteger(dealTicket, DEAL_TIME), TIME_DATE|TIME_SECONDS),
+                                    EnumToString((ENUM_DAY_OF_WEEK)day_of_week),
+
                                     DoubleToString(HistoryDealGetDouble(dealTicket, DEAL_VOLUME), 2),
                                     DoubleToString(HistoryDealGetDouble(dealTicket, DEAL_PRICE), (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS)),
                                     DoubleToString(HistoryDealGetDouble(dealTicket, DEAL_SL), (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS)),
