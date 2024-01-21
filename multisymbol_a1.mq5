@@ -69,12 +69,12 @@ int      iBarForProcessing;              //This will either be bar 0 or bar 1, a
 //    So if I use a lower timeframe in the tester, I get time for all symbols to "catch up"   
 
 // RISK MODULE
-#include "ACFunctions.mqh"
+#include <_Agustin\ACFunctions.mqh>
 input double AtrProfitMulti    = 4.0;   // ATR Profit Multiple
 input double AtrLossMulti      = 1.0;   // ATR Loss Multiple
 
 // INCLUDES
-//#include "TimeRange.mqh"
+//#include <_Agustin\TimeRange.mqh>
    // Para poder usar esta función, en el EA tengo que crear las siguientes variables:
    // MqlTick prevTick, lastTick;
 
@@ -116,8 +116,7 @@ string ExpertComments = "";
 string CloseSignalStatus = "";
 
 // CUSTOM METRICS
-#include "CustomMetrics.mqh"
-
+#include <_Agustin\CustomMetrics.mqh>
 int OnInit(){
    if (!CheckInputs()) return INIT_PARAMETERS_INCORRECT; // check correct input from user
    //Declare magic number for all trades

@@ -36,7 +36,7 @@ input string               InpTradeComment = __FILE__;      // Optional comment 
 //input ENUM_APPLIED_PRICE   InpAppliedPrice = PRICE_CLOSE;   // Applied price for indicators
 
 // RISK MODULE
-#include "ACFunctions.mqh"
+#include <_Agustin\ACFunctions.mqh>
 input double AtrProfitMulti    = 4.0;   // ATR Profit Multiple
 input double AtrLossMulti      = 1.0;   // ATR Loss Multiple
 
@@ -46,7 +46,7 @@ input double puntos_salida  = 0;        // puntos de desfasaje en Salida
 // INCLUDES
 #include <Indicators/Trend.mqh>
 #include <Indicators/Oscilators.mqh> 
-#include "TimeRange.mqh"
+#include <_Agustin\TimeRange.mqh>
    // Para poder usar esta función, en el EA tengo que crear las siguientes variables:
        MqlTick prevTick, lastTick;
 
@@ -103,7 +103,7 @@ double AtrCurrent;
 // input int InpPosTimer= 600;    // Minutes for Position close 
 
 // CUSTOM METRICS
-#include "CustomMetrics.mqh"
+#include <_Agustin\CustomMetrics.mqh>
 const string IndicatorName = "Agustin\\AC_Aroon"; // Credit to Darwinex / TradeLikeAMachine
 
 //+------------------------------------------------------------------+
