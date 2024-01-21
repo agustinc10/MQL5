@@ -27,7 +27,7 @@
 
 #include <StdLibErr.mqh>
 #include <Math\Stat\Stat.mqh>          // Required for MathStandardDeviation() and MathCorrelationPearson()
-
+#include <_Agustin\LogFile_functions.mqh>        // Required to generate the Deal Log File
 //+------------------------------------------------------------------+
 //| Input variables                                                  |
 //+------------------------------------------------------------------+
@@ -50,17 +50,9 @@ enum ENUM_CUSTOM_PERF_CRITERIUM_METHOD
    CAGR_OVER_MEAN_DD,                           // CAGR/MeanDD
    COEFF_CORRELATION_R                          // Coefficient of Correlation (r)
 };
-enum ENUM_DIAGNOSTIC_LOGGING_LEVEL
-{
-   DIAG_LOGGING_NONE,                           // NONE
-   DIAG_LOGGING_LOW,                            // LOW - Major Diagnostics Only
-   DIAG_LOGGING_MEDIUM,                         // MEDIUM - Medium level logging
-   DIAG_LOGGING_HIGH                            // HIGH - All Diagnostics (Warning - Use with caution)
-};
 
 input group "==== Optimization Mode ===="
 input ENUM_CUSTOM_PERF_CRITERIUM_METHOD   CustomPerfCriterium    = COEFF_CORRELATION_R;      //Custom Performance Criterium
-input ENUM_DIAGNOSTIC_LOGGING_LEVEL       DiagnosticLoggingLevel = DIAG_LOGGING_NONE;         //Diagnostic Logging Level
 input int                                 minTradesToConsider    = 250;                      //Min Trades to consider results
 
 //Globals
@@ -69,7 +61,7 @@ double   EquityHistoryArray[];                  // Used to store equity at inter
 double   StartingEquity;                        // Stores the Starting Equity (i.e. the deposit amount at the beginning of the backtest)
 datetime BackTestFirstDate;                     // Used in the CAGR/MeanDD Calc
 datetime BackTestFinalDate;                     // Used in the CAGR/MeanDD Calc
-MqlDateTime dealTime;
+
 int OnInitCustomMetrics(){
    //## YOUR OWN CODE HERE ##
 
@@ -454,61 +446,8 @@ int ModifiedProfitFactor(double& dCustomPerformanceMetric)
       FileWrite(outputFileHandle, "NUM TRADES EXCLUDED (> " + DoubleToString(stdDevExcludeMultiple, 1) + " SD)", numExcludedTrades, DoubleToString(((double)numExcludedTrades/numTrades)*100.0) + "%");
       FileWrite(outputFileHandle, "MODIFIED PROFIT FACTOR", dCustomPerformanceMetric);
       
-      FileClose(outputFileHandle);   
    }
+
+   CloseDiagnosticFile(DiagnosticLoggingLevel, outputFileHandle);
    return numTrades;
 }  
-
-// Create Diagnostic File 
-void DiagnosticFile(int DiagnosticLogLevel,int &outputFileHandle){
-if(DiagnosticLogLevel >= 1){
-   string outputFileName = "DEAL_DIAGNOSTIC_INFO\\deal_log.csv";
-   outputFileHandle = FileOpen(outputFileName, FILE_WRITE|FILE_CSV, "\t");
-   FileWrite(outputFileHandle, "LIST OF DEALS IS BACKTEST");   
-   FileWrite(outputFileHandle, "TICKET", "DEAL_ORDER", "DEAL_POSITION_ID", "DEAL_SYMBOL", "DEAL_TYPE", 
-                                 "DEAL_ENTRY", "DEAL_REASON", "DEAL_TIME", "DEAL_DAY_OF_WEEK", "DEAL_VOLUME", "DEAL_PRICE", 
-                                 "DEAL_SL", "DEAL_TP", "DEAL_COMMISSION", "DEAL_SWAP", "DEAL_PROFIT", 
-                                 "DEAL_RR_FACTOR", "DEAL_MAGIC", "DEAL_COMMENT");
-   }
-}
-
-// Output main data to file
-void OutputMainData(int DiagnosticLogLevel, int outputFileHandle, ulong dealTicket){
-   if(DiagnosticLogLevel >= 1){
-      string symbol = HistoryDealGetString(dealTicket, DEAL_SYMBOL);
-      long dealPositionID = HistoryDealGetInteger(dealTicket, DEAL_POSITION_ID);
-
-      long tmp;
-      HistoryDealGetInteger(dealTicket, DEAL_TIME, tmp);
-      TimeToStruct(tmp, dealTime);
-      int dow = dealTime.day_of_week;
-      ENUM_DAY_OF_WEEK day_of_week = ENUM_DAY_OF_WEEK (dow);
-
-      double Rfactor = 0;
-      if (HistoryDealGetInteger(dealTicket, DEAL_ENTRY) == DEAL_ENTRY_OUT) 
-         Rfactor = (HistoryDealGetDouble(dealTicket, DEAL_PRICE) - HistoryDealGetDouble(dealPositionID, DEAL_PRICE)) / (HistoryDealGetDouble(dealPositionID, DEAL_PRICE) - HistoryDealGetDouble(dealTicket, DEAL_SL));
-      FileWrite(outputFileHandle, IntegerToString(dealTicket), 
-                                    IntegerToString(HistoryDealGetInteger(dealTicket, DEAL_ORDER)),
-                                    IntegerToString(dealPositionID),
-                                    symbol,
-                                    EnumToString((ENUM_DEAL_TYPE)HistoryDealGetInteger(dealTicket, DEAL_TYPE)),
-
-                                    EnumToString((ENUM_DEAL_ENTRY)HistoryDealGetInteger(dealTicket, DEAL_ENTRY)),
-                                    EnumToString((ENUM_DEAL_REASON)HistoryDealGetInteger(dealTicket, DEAL_REASON)),
-                                    TimeToString((datetime)HistoryDealGetInteger(dealTicket, DEAL_TIME), TIME_DATE|TIME_SECONDS),
-                                    EnumToString((ENUM_DAY_OF_WEEK)day_of_week),
-
-                                    DoubleToString(HistoryDealGetDouble(dealTicket, DEAL_VOLUME), 2),
-                                    DoubleToString(HistoryDealGetDouble(dealTicket, DEAL_PRICE), (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS)),
-                                    DoubleToString(HistoryDealGetDouble(dealTicket, DEAL_SL), (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS)),
-                                    DoubleToString(HistoryDealGetDouble(dealTicket, DEAL_TP), (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS)),
-
-                                    DoubleToString(HistoryDealGetDouble(dealTicket, DEAL_COMMISSION), 2),
-                                    DoubleToString(HistoryDealGetDouble(dealTicket, DEAL_SWAP), 2),
-                                    DoubleToString(HistoryDealGetDouble(dealTicket, DEAL_PROFIT), 2),
-                                    DoubleToString(Rfactor, 2),
-                                    IntegerToString(HistoryDealGetInteger(dealTicket, DEAL_MAGIC)),
-                                    HistoryDealGetString(dealTicket, DEAL_COMMENT)
-                                    );
-   }
-}

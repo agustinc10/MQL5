@@ -27,7 +27,7 @@
 //+------------------------------------------------------------------+
 //Libraries and Setup
 #include  <Trade\Trade.mqh>             // Include MQL trade object functions
-CTrade    Trade;                        // Declare Trade as pointer to CTrade class            
+CTrade    Trade;                        // Declare Trade as pointer to CTrade class      
 
 input group "==== General Inputs ===="
 input int     MagicNumber   = 2000001;  // Unique identifier for this expert advisor for EA not get confused between each other
@@ -116,7 +116,9 @@ string ExpertComments = "";
 string CloseSignalStatus = "";
 
 // CUSTOM METRICS
-#include <_Agustin\CustomMetrics.mqh>
+//#include <_Agustin\CustomMetrics.mqh>
+#include <_Agustin\LogFile.mqh>
+
 int OnInit(){
    if (!CheckInputs()) return INIT_PARAMETERS_INCORRECT; // check correct input from user
    //Declare magic number for all trades
@@ -173,8 +175,8 @@ int OnInit(){
 
    //Set Up Multi-Symbol Handles for Indicators
    if (!SetUpIndicatorHandles()) return(INIT_FAILED);
-   
-   if (OnInitCustomMetrics() != 0) return INIT_PARAMETERS_INCORRECT;
+
+   //if (OnInitCustomMetrics() != 0) return INIT_PARAMETERS_INCORRECT;
    return(INIT_SUCCEEDED);
 }
 
@@ -265,7 +267,7 @@ void OnTick(){
             );
    }
 
-   OnTickCustomMetrics();         
+   //OnTickCustomMetrics();         
 }
 
 //+------------------------------------------------------------------+
@@ -553,7 +555,7 @@ bool ProcessTradeOpen(string CurrentSymbol, int SymbolLoop, ENUM_ORDER_TYPE Orde
       if (Trade.ResultRetcode() != TRADE_RETCODE_DONE){   // To check the result of the operation, to make sure we closed the position correctly
       Print ("Error Code ", GetLastError(), ". Desc : ", getErrorDesc(GetLastError()),". Failed to open position. Result " + (string)Trade.ResultRetcode() + ":" + Trade.ResultRetcodeDescription());
       return false;     
-   }
+      }
       // Set OpenTradeOrderTicket to prevent future trades being opened until this is closed
       OpenTradeOrderTicket[SymbolLoop] = Trade.ResultDeal();   
       /*// Print Array status
