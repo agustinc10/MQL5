@@ -490,14 +490,17 @@ bool ProcessTradeOpen(string CurrentSymbol, int SymbolLoop, ENUM_ORDER_TYPE Orde
       int    SymbolDigits   = (int) SymbolInfoInteger(CurrentSymbol,SYMBOL_DIGITS); //note - typecast required to remove error
      
       double CurrentAtr     = GetAtrValue(SymbolLoop);
-      double StopLossSize   = NormalizeDouble(CurrentAtr * AtrLossMulti, SymbolDigits); 
-      double TakeProfitSize = NormalizeDouble(CurrentAtr * AtrProfitMulti, SymbolDigits);
+      double StopLossSize   = NormalizeDouble(MathMin(CurrentAtr * AtrLossMulti, SymbolInfoDouble(CurrentSymbol, SYMBOL_BID)/2), SymbolDigits); 
+      double TakeProfitSize = NormalizeDouble(MathMin(CurrentAtr * AtrProfitMulti, SymbolInfoDouble(CurrentSymbol, SYMBOL_BID)/2), SymbolDigits);
+
+      if (!Checkstoplevels(StopLossSize, TakeProfitSize)) return false;                                             
 
       double Price           = 0;
       double StopLossPrice   = 0;
       double TakeProfitPrice = 0;
 
-      double LotSize = CalculateLots(CurrentSymbol, StopLossSize);
+      double LotSize = CalculateLots(CurrentSymbol, StopLossSize);      
+      if (!CheckMoneyForTrade(CurrentSymbol, LotSize, OrderType)) return false;         
       if (LotSize == 0) return false;
 
       //Open buy or sell orders
@@ -514,8 +517,8 @@ bool ProcessTradeOpen(string CurrentSymbol, int SymbolLoop, ENUM_ORDER_TYPE Orde
          TakeProfitPrice = NormalizeDouble(Price - TakeProfitSize, SymbolDigits);
       }
       bool success = Trade.PositionOpen(CurrentSymbol, OrderType, LotSize, Price, StopLossPrice, TakeProfitPrice, __FILE__);
-      //--- if the result fails - try to find out why 
 
+      //--- if the result fails - try to find out why 
       if (Trade.ResultRetcode() != TRADE_RETCODE_DONE){   // To check the result of the operation, to make sure we closed the position correctly
       Print ("Error Code ", GetLastError(), ". Desc : ", getErrorDesc(GetLastError()),". Failed to open position. Result " + (string)Trade.ResultRetcode() + ":" + Trade.ResultRetcodeDescription());
       return false;     
@@ -672,6 +675,11 @@ bool CheckInputs() {
 
 // Calculate Value at Risk
 bool VaRCalc(string CurrentSymbol, double ProposedPosSize){
+   
+   // If there is no VaR limit skip calculations
+   double LimitVaR = AccountInfoDouble(ACCOUNT_EQUITY) * InpVaRPercent/100;
+   if (InpVaRPercent == 100) return true; 
+
    // Count the number of non-zero elements in the original array
    int nonZeroCount = 0;
    for (int i = 0; i < NumberOfTradeableSymbols; i++) {
@@ -738,7 +746,6 @@ bool VaRCalc(string CurrentSymbol, double ProposedPosSize){
                "PROPOSED VaR: " + DoubleToString(proposedValueAtRisk, 2) + "\n" +
                "INCREMENTAL VaR: " + DoubleToString(incrVaR, 2)); 
       */         
-      double LimitVaR = AccountInfoDouble(ACCOUNT_EQUITY) * InpVaRPercent/100;
       Print(posDiagnostics + "\n" +
                "CURRENT VaR: " + DoubleToString(currValueAtRisk, 2) + "\n" +
                "PROPOSED VaR: " + DoubleToString(proposedValueAtRisk, 2) + "\n" +
