@@ -22,11 +22,10 @@
 #property description   "multisymbol_a1"
 #property version       "1.00"
 
-//+------------------------------------------------------------------+
-//| Expert Setup                                                     |
-//+------------------------------------------------------------------+
+// Expert Setup
+
 //Libraries and Setup
-#include  <Trade\Trade.mqh>             // Include MQL trade object functions
+#include  <Trade/Trade.mqh>             // Include MQL trade object functions
 CTrade    Trade;                        // Declare Trade as pointer to CTrade class      
 
 input group "==== General Inputs ===="
@@ -42,42 +41,27 @@ string             AllTradableSymbols = "AUDUSD|EURUSD|GBPUSD|USDCAD|USDCHF|USDJ
 int                NumberOfTradeableSymbols;
 string             SymbolArray[];
 
-// Candle Processing
-input group "==== Candle Processing ===="
-enum ENUM_BAR_PROCESSING_METHOD {
-   PROCESS_ALL_DELIVERED_TICKS,               //Process All Delivered Ticks
-   ONLY_PROCESS_TICKS_FROM_NEW_M1_BAR,        //Process Ticks From New M1 Bar
-   ONLY_PROCESS_TICKS_FROM_NEW_TRADE_TF_BAR   //Process Ticks From New TF Bar
-};
-input ENUM_TIMEFRAMES            TradeTimeframe      = PERIOD_H1;                                 //Trading Timeframe
-input ENUM_BAR_PROCESSING_METHOD BarProcessingMethod = ONLY_PROCESS_TICKS_FROM_NEW_TRADE_TF_BAR;  //EA Bar Processing Method
-
-int      TicksReceived  =  0;            //Number of ticks received by the EA
-int      TicksProcessed[];               //Number of ticks processed by the EA (will depend on the BarProcessingMethod being used)
-datetime TimeLastTickProcessed[];        //Used to control the processing of trades so that processing only happens at the desired intervals (to allow like-for-like back testing between the Strategy Tester and Live Trading)
-
-int      iBarForProcessing;              //This will either be bar 0 or bar 1, and depends on the BarProcessingMethod - Set in OnInit()
-
-// TAKE INTO ACCOUNT
-// The following issues do not apply in Live Trading since you are always receiving every Tick
-
-// If I choose Processing Method = All Ticks, in the Backtester I have to select Modelling with Ticks
-// If I choose Processing Method = New_M1_BAr, in the Backtester I have to select Modelling with Ticks or M1 OHLC (because I need to receive at least 1 tick every minute)
-// If I choose Processing Method = New_Trade_TF_Bar in the Backtester I have to select a TF lower than that.     If Modelling TF is equal to "Trading Timeframe", errors occur and you miss trades.
-//    Since I loop when a tick from the CURRENT Symbol arrives (ex. EURUSD), it may happen that the tick for the change of candle (ex. 10am) of another symbol (Ex. GBPUSD) hasn't arrived yet.
-//    In that case I will only receive the tick of 10am of GBPUSD when the 11am tick of EURUSD arrives.
-//    So if I use a lower timeframe in the tester, I get time for all symbols to "catch up"   
-
-// RISK MODULE
-#include <_Agustin\ACFunctions.mqh>
+// Include common functions
+#include <_Agustin/ACFunctions.mqh>
 input double AtrProfitMulti    = 4.0;   // ATR Profit Multiple
 input double AtrLossMulti      = 1.0;   // ATR Loss Multiple
 
+// WARNING: Timeframe hardcoded to 1h in mqh file to be able to backtest with open bars of 1h
+#include <_Darwinex/DWEX_Portfolio_Risk_Man_Multi_Position.mqh>
+
+input group "==== Value at Risk ===="
+input ENUM_TIMEFRAMES InpVaRTimeframe    = PERIOD_D1;    //Value at Risk Timeframe
+input int             InpStdDevPeriods   = 21;           //Std Deviation Periods
+input int             InpCorrelPeriods   = 42;           //Pearson Correlation Coeff Periods
+input double          InpVaRPercent      = 5;            //Max VaR to open a new position
+
+// Instantiate CPortfolioRiskMan object
+CPortfolioRiskMan PortfolioRisk(InpVaRTimeframe, InpStdDevPeriods, InpCorrelPeriods);
+
 // INCLUDES
-//#include <_Agustin\TimeRange.mqh>
+//#include <_Agustin/TimeRange.mqh>
    // Para poder usar esta función, en el EA tengo que crear las siguientes variables:
    // MqlTick prevTick, lastTick;
-
 
 // Indicator 1 Variables
 input group "==== Stochastic Inputs ===="
@@ -115,9 +99,10 @@ string SymbolMetrics[];
 string ExpertComments = "";
 string CloseSignalStatus = "";
 
-// CUSTOM METRICS
-//#include <_Agustin\CustomMetrics.mqh>
-#include <_Agustin\LogFile.mqh>
+// Custom Metrics or LogFile (include one or the other)
+// If using Custom Metrics, uncomment init and ontick functions
+// #include <_Agustin/CustomMetrics.mqh>
+#include <_Agustin/LogFile.mqh>
 
 int OnInit(){
    if (!CheckInputs()) return INIT_PARAMETERS_INCORRECT; // check correct input from user
@@ -152,13 +137,7 @@ int OnInit(){
    }
       
    //Determine which bar we will used (0 or 1) to perform processing of data
-   if(BarProcessingMethod == PROCESS_ALL_DELIVERED_TICKS)                   //Process data every tick that is 'delivered' to the EA
-      iBarForProcessing = 0;                                                //The rationale here is that it is only worth processing every tick if you are actually going to use bar 0 from the trade TF, the value of which changes throughout the bar in the Trade TF                                          //The rationale here is that we want to use values that are right up to date - otherwise it is pointless doing this every 10 seconds   
-   else if(BarProcessingMethod == ONLY_PROCESS_TICKS_FROM_NEW_M1_BAR)       //Process trades based on 'any' TF, every minute.
-      iBarForProcessing = 0;                                                //The rationale here is that it is only worth processing every minute if you are actually going to use bar 0 from the trade TF, the value of which changes throughout the bar in the Trade TF      
-   else if(BarProcessingMethod == ONLY_PROCESS_TICKS_FROM_NEW_TRADE_TF_BAR) //Process when a new bar appears in the TF being used. So the M15 TF is processed once every 15 minutes, the TF60 is processed once every hour etc...
-      iBarForProcessing = 1;                                                //The rationale here is that if you only process data when a new bar in the trade TF appears, then it is better to use the indicator data etc from the last 'completed' bar, which will not subsequently change. (If using indicator values from bar 0 these will change throughout the evolution of bar 0) 
-   Print("EA using " + EnumToString(BarProcessingMethod) + " processing method and indicators will use bar " + IntegerToString(iBarForProcessing));
+   iBarForProcessing = setProcessingBar(BarProcessingMethod, iBarForProcessing);
 
    // Add Symbols to Marketwatch
    AddToMarketWatch();
@@ -177,6 +156,7 @@ int OnInit(){
    if (!SetUpIndicatorHandles()) return(INIT_FAILED);
 
    //if (OnInitCustomMetrics() != 0) return INIT_PARAMETERS_INCORRECT;
+
    return(INIT_SUCCEEDED);
 }
 
@@ -193,7 +173,7 @@ void OnTick(){
    //Declare comment variables
    ExpertComments="";
    TicksReceived++;
-  
+   
    //Run multi-symbol loop   
    for(int SymbolLoop = 0; SymbolLoop < NumberOfTradeableSymbols; SymbolLoop++)
    {      
@@ -202,23 +182,9 @@ void OnTick(){
       // Exit if the market may be closed // https://youtu.be/GejPtodJow
       if( !IsMarketOpen(CurrentSymbol, TimeCurrent())) return;
       
-      //###############################################################
       //Control EA so that we only process trades at required intervals (Either 'Every Tick', 'TF Open Prices' or 'M1 Open Prices')
-      //###############################################################      
       bool ProcessThisIteration = false;     //Set to false by default and then set to true below if required
-      if(BarProcessingMethod == PROCESS_ALL_DELIVERED_TICKS) ProcessThisIteration = true;      
-      else if(BarProcessingMethod == ONLY_PROCESS_TICKS_FROM_NEW_M1_BAR){                    // Process trades from any TF, every minute.
-         if(TimeLastTickProcessed[SymbolLoop] != iTime(CurrentSymbol, PERIOD_M1, 0)){
-            ProcessThisIteration = true;
-            TimeLastTickProcessed[SymbolLoop] = iTime(CurrentSymbol, PERIOD_M1, 0);
-         }
-      }
-      else if(BarProcessingMethod == ONLY_PROCESS_TICKS_FROM_NEW_TRADE_TF_BAR){              // Process when a new bar appears in the TF being used. So the M15 TF is processed once every 15 minutes, the TF60 is processed once every hour etc...
-         if(TimeLastTickProcessed[SymbolLoop] != iTime(CurrentSymbol, TradeTimeframe, 0)){   // TimeLastTickProcessed contains the last Time[0] we processed for this TF. If it's not the same as the current value, we know that we have a new bar in this TF, so need to process 
-            ProcessThisIteration = true;
-            TimeLastTickProcessed[SymbolLoop] = iTime(CurrentSymbol, TradeTimeframe, 0);
-         }
-      }
+      ProcessThisIteration = TickProcessingMultiSymbol(ProcessThisIteration, SymbolLoop, CurrentSymbol);
 
       // Process Trades if appropriate
       if(ProcessThisIteration == true){
@@ -229,13 +195,12 @@ void OnTick(){
          IndicatorSignal2  = MA_SignalOpen(SymbolLoop);  
 
          // Reset OpenTradeOrderTicket values to account for SL and TP executions
-         ResetOpenTrades();
-
+         ResetOpenTrades(SymbolLoop);
          // Close Signal
          CloseSignalStatus = Stochastic_SignalClose(SymbolLoop);
          // Close Trades
          if ((CloseSignalStatus == "Close_Long" || CloseSignalStatus == "Close_Short") && OpenTradeOrderTicket[SymbolLoop] != 0)
-            ProcessTradeClose(SymbolLoop, CloseSignalStatus);
+            ProcessTradeClose(SymbolLoop, CloseSignalStatus);    
 
          //Enter Trades
          if (OpenTradeOrderTicket[SymbolLoop] == 0){
@@ -270,9 +235,8 @@ void OnTick(){
    //OnTickCustomMetrics();         
 }
 
-//+------------------------------------------------------------------+
-//| Expert custom functions                                          |
-//+------------------------------------------------------------------+
+// Expert custom functions
+
 // Resize Core Arrays for multi-symbol EA
 void ResizeCoreArrays(){
    ArrayResize(OpenTradeOrderTicket,  NumberOfTradeableSymbols);
@@ -504,14 +468,12 @@ double GetAtrValue(int SymbolLoop){
 }
 
 // Reset values OpenTradeOrderTicket array to account for SL and TP executions
-void ResetOpenTrades() {
-   for(int SymbolLoop=0; SymbolLoop < NumberOfTradeableSymbols; SymbolLoop++) {
-      string CurrentSymbol    = SymbolArray[SymbolLoop];
-      ulong  position_ticket  = OpenTradeOrderTicket[SymbolLoop];
-      if (OpenTradeOrderTicket[SymbolLoop] != 0 && !PositionSelectByTicket(position_ticket)) { 
-         Print (CurrentSymbol, " - ",  position_ticket, " Ticket not found. SL or TP executed. Reset OpenTrade Array");
-         OpenTradeOrderTicket[SymbolLoop] = 0; 
-      }
+void ResetOpenTrades(int SymbolLoop) {
+   string CurrentSymbol    = SymbolArray[SymbolLoop];
+   ulong  position_ticket  = OpenTradeOrderTicket[SymbolLoop];
+   if (OpenTradeOrderTicket[SymbolLoop] != 0 && !PositionSelectByTicket(position_ticket)) { 
+      Print (CurrentSymbol, " - ",  position_ticket, " Ticket not found. SL or TP executed. Reset OpenTrade Array");
+      OpenTradeOrderTicket[SymbolLoop] = 0; 
    }      
 }
 
@@ -540,11 +502,13 @@ bool ProcessTradeOpen(string CurrentSymbol, int SymbolLoop, ENUM_ORDER_TYPE Orde
 
       //Open buy or sell orders
       if (OrderType == ORDER_TYPE_BUY) {
+         if(!VaRCalc(CurrentSymbol, LotSize)) return false;
          Price           = NormalizeDouble(SymbolInfoDouble(CurrentSymbol, SYMBOL_ASK), SymbolDigits);
          StopLossPrice   = NormalizeDouble(Price - StopLossSize, SymbolDigits);
          TakeProfitPrice = NormalizeDouble(Price + TakeProfitSize, SymbolDigits);
       } 
       else if (OrderType == ORDER_TYPE_SELL) {
+         if(!VaRCalc(CurrentSymbol, -LotSize)) return false;
          Price           = NormalizeDouble(SymbolInfoDouble(CurrentSymbol, SYMBOL_BID), SymbolDigits);
          StopLossPrice   = NormalizeDouble(Price + StopLossSize, SymbolDigits);
          TakeProfitPrice = NormalizeDouble(Price - TakeProfitSize, SymbolDigits);
@@ -703,5 +667,86 @@ bool CheckInputs() {
    if (InpSlowMA <= 0)         { Alert("Slow MA <= 0"); return false;}
    if (InpUSlowMA <= 0)        { Alert("Ultra Slow MA <= 0"); return false;}
 
+   return true;
+}
+
+// Calculate Value at Risk
+bool VaRCalc(string CurrentSymbol, double ProposedPosSize){
+   // Count the number of non-zero elements in the original array
+   int nonZeroCount = 0;
+   for (int i = 0; i < NumberOfTradeableSymbols; i++) {
+      if (OpenTradeOrderTicket[i] != 0) {
+         nonZeroCount++;
+      }
+   }
+
+   if(nonZeroCount>0){
+      // Create a new arrays with non-zero values
+      string CurrPortAssets[];  
+      double CurrPortLotSizes[];
+      long   CurrPortDirection[];
+
+      ArrayResize(CurrPortAssets, nonZeroCount);
+      ArrayResize(CurrPortLotSizes, nonZeroCount);
+      ArrayResize(CurrPortDirection, nonZeroCount);
+
+      // Copy non-zero values from the original array to the new array
+      for (int i = 0, j = 0; i < NumberOfTradeableSymbols; i++) {
+         if (OpenTradeOrderTicket[i] != 0) {
+            CurrPortAssets[j] = SymbolArray[i];
+            PositionSelectByTicket(OpenTradeOrderTicket[i]);
+            PositionGetDouble(POSITION_VOLUME, CurrPortLotSizes[j]);
+            PositionGetInteger(POSITION_TYPE, CurrPortDirection[j]);
+            if(CurrPortDirection[j] == POSITION_TYPE_SELL)
+               CurrPortLotSizes[j] = -MathAbs(CurrPortLotSizes[j]);
+            j++;
+         }
+      }
+
+      //CALCULATE THE INITIAL VaR BEFORE PROPOSED POSITION
+      PortfolioRisk.CalculateVaR(CurrPortAssets, CurrPortLotSizes);  
+      double currValueAtRisk = PortfolioRisk.MultiPositionVaR;
+     
+      //CREATE PROPOSED POSITION ARRAY AND ADD PROPOSED POSITION 
+      string ProposedPortAssets[];
+      double ProposedPorLotSizes[];
+      ArrayResize(ProposedPortAssets, nonZeroCount + 1);
+      ArrayResize(ProposedPorLotSizes, nonZeroCount + 1);
+      
+      ArrayCopy(ProposedPortAssets, CurrPortAssets);
+      ArrayCopy(ProposedPorLotSizes, CurrPortLotSizes);
+               
+      ProposedPortAssets[ArraySize(ProposedPortAssets)-1]   = CurrentSymbol;
+      ProposedPorLotSizes[ArraySize(ProposedPorLotSizes)-1] = ProposedPosSize;
+      
+      //POSITION DIAGNOSTIOCS
+      string posDiagnostics = "";
+      for(int i=0; i<ArraySize(ProposedPortAssets); i++){
+         string posType = (i==ArraySize(ProposedPortAssets)-1)?"PROPOSED":"EXISTING";
+         posDiagnostics += "Pos " + IntegerToString(i) + " " + ProposedPortAssets[i] + " " + DoubleToString(ProposedPorLotSizes[i], 2) + "  (" + posType + ")\n";
+      }   
+      
+      //CALCULATE THE PROPOSED VaR IF NEW POSITION WERE ALLOWED TO OPEN
+      PortfolioRisk.CalculateVaR(ProposedPortAssets, ProposedPorLotSizes);
+      double proposedValueAtRisk = PortfolioRisk.MultiPositionVaR;
+      
+      //CALCULATE INCREMENTAL VaR
+      double incrVaR = proposedValueAtRisk - currValueAtRisk;
+      /*
+      MessageBox(posDiagnostics + "\n" +
+               "CURRENT VaR: " + DoubleToString(currValueAtRisk, 2) + "\n" +
+               "PROPOSED VaR: " + DoubleToString(proposedValueAtRisk, 2) + "\n" +
+               "INCREMENTAL VaR: " + DoubleToString(incrVaR, 2)); 
+      */         
+      double LimitVaR = AccountInfoDouble(ACCOUNT_EQUITY) * InpVaRPercent/100;
+      Print(posDiagnostics + "\n" +
+               "CURRENT VaR: " + DoubleToString(currValueAtRisk, 2) + "\n" +
+               "PROPOSED VaR: " + DoubleToString(proposedValueAtRisk, 2) + "\n" +
+               "INCREMENTAL VaR: " + DoubleToString(incrVaR, 2) + "\n" +
+               "LimitVaR: " + DoubleToString(LimitVaR, 2)+ "\n"); 
+
+      if(proposedValueAtRisk > LimitVaR) 
+         return false;
+   }
    return true;
 }

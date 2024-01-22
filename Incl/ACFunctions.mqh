@@ -22,6 +22,19 @@
 //+--------------------------------------------------------------------------------+
 
 //+------------------------------------------------------------------+
+//||||||||||||||||||||||||||||| INPUTS |||||||||||||||||||||||||||||||
+//+------------------------------------------------------------------+
+
+input group "==== Risk Mode ===="
+enum LOT_MODE_ENUM {
+   LOT_MODE_FIXED,                     // fixed lots
+   LOT_MODE_MONEY,                     // lots based on money
+   LOT_MODE_PCT_ACCOUNT                // lots based on % of account   
+};
+input LOT_MODE_ENUM InpLotMode = LOT_MODE_FIXED; // lot mode
+input double        InpLots    = 0.10;           // lots / money / percent
+
+//+------------------------------------------------------------------+
 //||||||||||||||||||||||| ORDERS & POSITIONS |||||||||||||||||||||||||
 //+------------------------------------------------------------------+
 
@@ -268,15 +281,6 @@ string InvalidHandleErrorMessageBox(string symbol, string indicator) {
 //+------------------------------------------------------------------+
 //||||||||||||||||||||||| RISK CALCULATIONS ||||||||||||||||||||||||||
 //+------------------------------------------------------------------+
-input group "==== Risk Mode ===="
-enum LOT_MODE_ENUM {
-   LOT_MODE_FIXED,                     // fixed lots
-   LOT_MODE_MONEY,                     // lots based on money
-   LOT_MODE_PCT_ACCOUNT                // lots based on % of account   
-};
-input LOT_MODE_ENUM InpLotMode = LOT_MODE_FIXED; // lot mode
-input double        InpLots    = 0.10;           // lots / money / percent
-
 
 double DoubleToTicks( string symbol, double value ) {
    return ( value / SymbolInfoDouble( symbol, SYMBOL_TRADE_TICK_SIZE ) );
