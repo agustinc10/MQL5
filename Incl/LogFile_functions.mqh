@@ -44,7 +44,7 @@ if(DiagnosticLogLevel >= 1){
    FileWrite(outputFileHandle, "LIST OF DEALS IS BACKTEST");   
    FileWrite(outputFileHandle, "TICKET", "DEAL_ORDER", "DEAL_POSITION_ID", "DEAL_SYMBOL", "DEAL_TYPE", "OPEN_POSITIONS", 
                                  "DEAL_ENTRY", "DEAL_REASON", "DEAL_TIME", "DEAL_DAY_OF_WEEK", "DEAL_VOLUME", "DEAL_PRICE", 
-                                 "DEAL_SL", "DEAL_TP", "DEAL_COMMISSION", "DEAL_SWAP", "DEAL_PROFIT", "DEAL_NET_PROFIT", 
+                                 "DEAL_SL", "DEAL_TP", "DEAL_COMMISSION", "DEAL_SWAP", "DEAL_PROFIT", "DEAL_NET_PROFIT", "TRADE_RESULT",
                                  "DEAL_RR_FACTOR", "DEAL_MAGIC", "DEAL_COMMENT");
    }
 }
@@ -83,6 +83,10 @@ void OutputMainData(int DiagnosticLogLevel, int outputFileHandle, ulong dealTick
          Rfactor = (HistoryDealGetDouble(dealTicket, DEAL_PRICE) - HistoryDealGetDouble(dealPositionID, DEAL_PRICE)) / 
                    (HistoryDealGetDouble(dealPositionID, DEAL_PRICE) - HistoryDealGetDouble(dealTicket, DEAL_SL));
       }
+      string resultTrade;
+      if (HistoryDealGetDouble(dealTicket, DEAL_PROFIT) > 0) resultTrade = "WIN";
+      else if (HistoryDealGetDouble(dealTicket, DEAL_PROFIT) < 0) resultTrade = "LOSS";
+      else resultTrade = "BE";
 
       FileWrite(outputFileHandle, IntegerToString(dealTicket), 
                                  IntegerToString(HistoryDealGetInteger(dealTicket, DEAL_ORDER)),
@@ -105,6 +109,7 @@ void OutputMainData(int DiagnosticLogLevel, int outputFileHandle, ulong dealTick
                                  DoubleToString(HistoryDealGetDouble(dealTicket, DEAL_SWAP), 2),
                                  DoubleToString(HistoryDealGetDouble(dealTicket, DEAL_PROFIT), 2),
                                  DoubleToString(tradeNetProfit, 2),
+                                 resultTrade, 
 
                                  DoubleToString(Rfactor, 2),
                                  IntegerToString(HistoryDealGetInteger(dealTicket, DEAL_MAGIC)),
