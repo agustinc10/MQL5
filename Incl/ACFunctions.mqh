@@ -564,7 +564,7 @@ int LastHigh(string symbol, ENUM_TIMEFRAMES Timeframe, int shoulder, string &H1,
       H2 = "HH";
    else 
       H2 = "LH";
-   
+   /*
    ObjectsDeleteAll(0, "arrowup");        
    ObjectCreate(0,"arrowup1",OBJ_ARROW_DOWN,0,iTime(symbol, Timeframe, High1),High1value); 
    ObjectSetInteger(0,"arrowup1",OBJPROP_ANCHOR,ANCHOR_BOTTOM); // set anchor type
@@ -580,7 +580,7 @@ int LastHigh(string symbol, ENUM_TIMEFRAMES Timeframe, int shoulder, string &H1,
    ObjectSetInteger(0,"arrowup3",OBJPROP_ANCHOR,ANCHOR_BOTTOM); 
    ObjectSetInteger(0,"arrowup3",OBJPROP_COLOR,clrLimeGreen); 
    ObjectSetInteger(0,"arrowup3",OBJPROP_WIDTH,2);
-   
+   */
    return High1;
 }
 
@@ -602,7 +602,7 @@ int LastLow(string symbol, ENUM_TIMEFRAMES Timeframe, int shoulder, string &L1, 
       L2 = "LL";
    else 
       L2 = "HL";
-   
+   /*
    ObjectsDeleteAll(0, "arrowdown");        
    ObjectCreate(0,"arrowdown1",OBJ_ARROW_UP,0,iTime(symbol, Timeframe, Low1),Low1value); 
    ObjectSetInteger(0,"arrowdown1",OBJPROP_ANCHOR,ANCHOR_TOP); // set anchor type
@@ -618,7 +618,7 @@ int LastLow(string symbol, ENUM_TIMEFRAMES Timeframe, int shoulder, string &L1, 
    ObjectSetInteger(0,"arrowdown3",OBJPROP_ANCHOR,ANCHOR_TOP); 
    ObjectSetInteger(0,"arrowdown3",OBJPROP_COLOR,clrRed); 
    ObjectSetInteger(0,"arrowdown3",OBJPROP_WIDTH,2);
-   
+   */
    return Low1;
 }
 
