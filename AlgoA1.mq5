@@ -178,7 +178,10 @@ void OnDeinit(const int reason){
    delete USlow_MA;
    delete Stochastic;
    Print ("Free Indicators memory");
-
+ 
+   // Delete objects
+   ObjectsDeleteAll(NULL, "range");    // We can delete defining a prefix of the name of the objects   
+ 
    Comment("");
 }
 
@@ -233,7 +236,7 @@ void OnTick(){
       // Close positions if out of RangeClose
       if(lastTick.time >= trange.start_time && lastTick.time < trange.end_time)
          trange.f_entry = true; // set flag (we know we had a tick in the trange)
-         else trange.f_entry = false;
+      else trange.f_entry = false;
          
       if (InpRangeClose >= 0 && lastTick.time >= trange.close_time) {
          if(!ClosePositions()) return;

@@ -22,6 +22,18 @@
 //+--------------------------------------------------------------------------------+
 
 //+------------------------------------------------------------------+
+//||||||||||||||||||||||||||||| INPUTS |||||||||||||||||||||||||||||||
+//+------------------------------------------------------------------+
+
+input group "==== Risk Mode ===="
+enum LOT_MODE_ENUM {
+   LOT_MODE_FIXED,                     // fixed lots
+   LOT_MODE_MONEY,                     // lots based on money
+   LOT_MODE_PCT_ACCOUNT                // lots based on % of account   
+};
+input LOT_MODE_ENUM InpLotMode = LOT_MODE_FIXED; // lot mode
+input double        InpLots    = 0.10;           // lots / money / percent
+
 //||||||||||||||||||||||| ORDERS & POSITIONS |||||||||||||||||||||||||
 //+------------------------------------------------------------------+
 
@@ -265,18 +277,8 @@ string InvalidHandleErrorMessageBox(string symbol, string indicator) {
 }
 */
 
-//+------------------------------------------------------------------+
 //||||||||||||||||||||||| RISK CALCULATIONS ||||||||||||||||||||||||||
 //+------------------------------------------------------------------+
-input group "==== Risk Mode ===="
-enum LOT_MODE_ENUM {
-   LOT_MODE_FIXED,                     // fixed lots
-   LOT_MODE_MONEY,                     // lots based on money
-   LOT_MODE_PCT_ACCOUNT                // lots based on % of account   
-};
-input LOT_MODE_ENUM InpLotMode = LOT_MODE_FIXED; // lot mode
-input double        InpLots    = 0.10;           // lots / money / percent
-
 
 double DoubleToTicks( string symbol, double value ) {
    return ( value / SymbolInfoDouble( symbol, SYMBOL_TRADE_TICK_SIZE ) );
@@ -348,7 +350,6 @@ double CalculateLots(string symbol, double slDistance)      // Pass lots as a re
    return mylots;
 }
 
-//+------------------------------------------------------------------+
 //||||||||||||||||||||||||| GENERAL CHECKS||||||||||||||||||||||||||||
 //+------------------------------------------------------------------+
 
@@ -517,4 +518,107 @@ bool IsMarketOpen(string symbol, datetime time) {
 	return false;
 	
 }
-          
+
+
+// https://www.youtube.com/watch?v=3-yKhOQlWvc
+
+// Para buscar hacia los dos lados
+int FindPeak(string symbol, int mode, int count, int startBar, ENUM_TIMEFRAMES Timeframe){
+   if(mode != MODE_HIGH && mode != MODE_LOW) return -1;
+   
+   int currentBar = startBar;    // this will be the counter
+   int foundBar = FindeNextPeak(symbol, mode, count*2+1, currentBar - count, Timeframe);      // count*2 to count to each side +1 to account for the currentbar
+   while (foundBar != currentBar){
+      currentBar = FindeNextPeak(symbol, mode, count, currentBar + 1, Timeframe);
+      foundBar = FindeNextPeak(symbol, mode, count*2+1, currentBar - count, Timeframe);      // count*2 to count to each side +1 to account for the currentbar
+   }
+   return(currentBar);
+}
+
+//Search Peak in "count" bars to the left of startBar 
+int FindeNextPeak(string symbol, int mode, int count, int startBar, ENUM_TIMEFRAMES Timeframe){
+   if (startBar<0){     // to make sure you always start in bar 0
+      count += startBar;
+      startBar = 0;
+   }   
+   return((mode == MODE_HIGH) ?
+            iHighest(symbol, Timeframe, (ENUM_SERIESMODE)mode, count, startBar) :
+            iLowest(symbol, Timeframe, (ENUM_SERIESMODE)mode, count, startBar)
+         );
+}
+
+// Find Higher Highs and Higher Lows
+int LastHigh(string symbol, ENUM_TIMEFRAMES Timeframe, int shoulder, string &H1, string &H2){
+   int High1 = FindPeak(symbol, MODE_HIGH, shoulder, 1, Timeframe);
+   int High2 = FindPeak(symbol, MODE_HIGH, shoulder, High1 + 1, Timeframe);
+   int High3 = FindPeak(symbol, MODE_HIGH, shoulder, High2 + 1, Timeframe);
+   double High1value = iHigh(symbol, Timeframe, High1);
+   double High2value = iHigh(symbol, Timeframe, High2);
+   double High3value = iHigh(symbol, Timeframe, High3);
+
+   if(High1value > High2value)
+      H1 = "HH";
+   else 
+      H1 = "LH"; 
+   if(High2value > High3value)
+      H2 = "HH";
+   else 
+      H2 = "LH";
+   /*
+   ObjectsDeleteAll(0, "arrowup");        
+   ObjectCreate(0,"arrowup1",OBJ_ARROW_DOWN,0,iTime(symbol, Timeframe, High1),High1value); 
+   ObjectSetInteger(0,"arrowup1",OBJPROP_ANCHOR,ANCHOR_BOTTOM); // set anchor type
+   ObjectSetInteger(0,"arrowup1",OBJPROP_COLOR,clrLimeGreen);    // set a sign color 
+   ObjectSetInteger(0,"arrowup1",OBJPROP_WIDTH,2);              // set the sign size  
+   
+   ObjectCreate(0,"arrowup2",OBJ_ARROW_DOWN,0,iTime(symbol, Timeframe, High2),High2value); 
+   ObjectSetInteger(0,"arrowup2",OBJPROP_ANCHOR,ANCHOR_BOTTOM); 
+   ObjectSetInteger(0,"arrowup2",OBJPROP_COLOR,clrLimeGreen); 
+   ObjectSetInteger(0,"arrowup2",OBJPROP_WIDTH,2);
+
+   ObjectCreate(0,"arrowup3",OBJ_ARROW_DOWN,0,iTime(symbol, Timeframe, High3),High3value); 
+   ObjectSetInteger(0,"arrowup3",OBJPROP_ANCHOR,ANCHOR_BOTTOM); 
+   ObjectSetInteger(0,"arrowup3",OBJPROP_COLOR,clrLimeGreen); 
+   ObjectSetInteger(0,"arrowup3",OBJPROP_WIDTH,2);
+   */
+   return High1;
+}
+
+int LastLow(string symbol, ENUM_TIMEFRAMES Timeframe, int shoulder, string &L1, string &L2){
+
+   int Low1 = FindPeak(symbol, MODE_LOW, shoulder, 1, Timeframe);
+   int Low2 = FindPeak(symbol, MODE_LOW, shoulder, Low1 + 1, Timeframe);
+   int Low3 = FindPeak(symbol, MODE_LOW, shoulder, Low2 + 1, Timeframe);
+   
+   double Low1value = iLow(symbol, Timeframe, Low1);
+   double Low2value = iLow(symbol, Timeframe, Low2);
+   double Low3value = iLow(symbol, Timeframe, Low3);      
+   
+   if(Low1value < Low2value)
+      L1 = "LL";
+   else 
+      L1 = "HL"; 
+   if(Low2value < Low3value)
+      L2 = "LL";
+   else 
+      L2 = "HL";
+   /*
+   ObjectsDeleteAll(0, "arrowdown");        
+   ObjectCreate(0,"arrowdown1",OBJ_ARROW_UP,0,iTime(symbol, Timeframe, Low1),Low1value); 
+   ObjectSetInteger(0,"arrowdown1",OBJPROP_ANCHOR,ANCHOR_TOP); // set anchor type
+   ObjectSetInteger(0,"arrowdown1",OBJPROP_COLOR,clrRed);    // set a sign color 
+   ObjectSetInteger(0,"arrowdown1",OBJPROP_WIDTH,2);              // set the sign size  
+   
+   ObjectCreate(0,"arrowdown2",OBJ_ARROW_UP,0,iTime(symbol, Timeframe, Low2),Low2value); 
+   ObjectSetInteger(0,"arrowdown2",OBJPROP_ANCHOR,ANCHOR_TOP); 
+   ObjectSetInteger(0,"arrowdown2",OBJPROP_COLOR,clrRed); 
+   ObjectSetInteger(0,"arrowdown2",OBJPROP_WIDTH,2);
+
+   ObjectCreate(0,"arrowdown3",OBJ_ARROW_UP,0,iTime(symbol, Timeframe, Low3),Low3value); 
+   ObjectSetInteger(0,"arrowdown3",OBJPROP_ANCHOR,ANCHOR_TOP); 
+   ObjectSetInteger(0,"arrowdown3",OBJPROP_COLOR,clrRed); 
+   ObjectSetInteger(0,"arrowdown3",OBJPROP_WIDTH,2);
+   */
+   return Low1;
+}
+

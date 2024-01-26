@@ -25,6 +25,7 @@
 //+------------------------------------------------------------------+ 
 
 /*
+- CheckInputsTimeRange()
 - CalculateRange()
 - DrawObjects()             //Necessary for CalculateRange()
 */
@@ -143,7 +144,7 @@ void CalculateRange()
       }
    }
    // draw object
-   DrawObjects();
+   //DrawObjects();
 } 
 
 

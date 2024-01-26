@@ -36,7 +36,6 @@ double OnTester(){
    // Create Diagnostic File
    int outputFileHandle = INVALID_HANDLE;
    DiagnosticFile(DiagnosticLoggingLevel, outputFileHandle);
-
    for(int dealID = 0; dealID < numDeals; dealID++){ 
       ulong dealTicket = HistoryDealGetTicket(dealID); 
       // Output main data to file
