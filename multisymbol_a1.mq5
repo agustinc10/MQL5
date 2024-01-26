@@ -77,7 +77,7 @@ input double AtrProfitMulti    = 4.0;   // ATR Profit Multiple
 input double AtrLossMulti      = 1.0;   // ATR Loss Multiple
 
 input int InpPosTimer          = 600;   // Minutes for Position close (-1 = off) 
-input int InpOrderTimer        = 65 ;    // Minutes for Order delete (-1 = off) 
+input int InpOrderTimer        = 65 ;   // Minutes for Order delete (-1 = off) 
 
 // INCLUDES
 
@@ -241,18 +241,16 @@ void OnTick(){
       // Process Trades if appropriate
       if(ProcessThisIteration == true){
          TicksProcessed[SymbolLoop]++; 
-         
-        // ResetOpenOrders(SymbolLoop, InpOrderTimer);
-         
+                 
          // Indicator 1 - Trigger
          IndicatorSignal1  = HHLL_SignalOpen(SymbolLoop); // Stochastic_SignalOpen(SymbolLoop);     
          // Indicator 2 - Filter
-         IndicatorSignal2  = Stochastic_SignalOpen(SymbolLoop); // MA_SignalOpen(SymbolLoop);  
+         IndicatorSignal2  = IndicatorSignal1; //Stochastic_SignalOpen(SymbolLoop); // MA_SignalOpen(SymbolLoop);  
 
          // Reset OpenTradeOrderTicket values to account for SL and TP executions
          ResetOpenTrades(SymbolLoop);
 
-         // Close Trades by timer
+         /*// Close Trades by timer
          if (OpenTradeOrderTicket[SymbolLoop] != 0)
             ClosePositionByTimer(SymbolLoop, InpPosTimer);
 
@@ -260,12 +258,12 @@ void OnTick(){
             ProcessTradeClose(SymbolLoop);
             Print ("Close because out of range");
          }
-
+         */
          // Close Signal
-         CloseSignalStatus = Stochastic_SignalClose(SymbolLoop);
-         // Close Trades
+         CloseSignalStatus = Stochastic_SignalClose(SymbolLoop); // "No_Close_Signal";
+         //Close Trades
          if (OpenTradeOrderTicket[SymbolLoop] != 0 && (CloseSignalStatus == "Close_Long" || CloseSignalStatus == "Close_Short"))
-               ProcessTradeClose(SymbolLoop, CloseSignalStatus);    
+            ProcessTradeClose(SymbolLoop, CloseSignalStatus);    
 
          //Enter Trades
          if (Time_Filter_Signals() == "Time ok"){
@@ -486,9 +484,9 @@ string Stochastic_SignalClose(int SymbolLoop){
    double    PrevD   = NormalizeDouble(BufferD[iBarForProcessing + 1], SymbolDigits);
 
    //Return Stochastic Long and Short Signal
-   if(CurrentD > InpStochOB || (PrevK > InpStochOS && CurrentK < InpStochOS))
+   if(CurrentD > InpStochOB) // || (PrevD > InpStochOS && CurrentD < InpStochOS))
       return   "Close_Long";
-   else if (CurrentD < InpStochOS || (PrevK < InpStochOB && CurrentK > InpStochOB))
+   else if (CurrentD < InpStochOS) // || (PrevD < InpStochOB && CurrentD > InpStochOB))
       return   "Close_Short";
    else
       return   "No_Close_Signal";   
@@ -507,10 +505,10 @@ string HHLL_SignalOpen(int SymbolLoop){
    int lastHighCandle = LastHigh(CurrentSymbol, TradeTimeframe, InpHHLLperiod, currHigh, prevHigh);
    int lastLowCandle  = LastLow(CurrentSymbol, TradeTimeframe, InpHHLLperiod, currLow, prevLow);
 
-   if (currHigh == "HH" && currLow == "HL") 
-      return "Long";
-   else if (currLow == "LL" && currHigh == "LH") 
+   if (currHigh == "HH" && lastHighCandle == 1 && currLow != "HL") 
       return "Short";
+   else if (currLow == "LL" && lastLowCandle == 1 && currHigh != "LH") 
+      return "Long";
    else 
       return "No Trade";   
 }
@@ -678,28 +676,28 @@ bool ProcessTradeOpen(string CurrentSymbol, int SymbolLoop, ENUM_ORDER_TYPE Orde
          Price           = NormalizeDouble(SymbolInfoDouble(CurrentSymbol, SYMBOL_ASK), SymbolDigits);
          StopLossPrice   = NormalizeDouble(Price - StopLossSize, SymbolDigits);
          TakeProfitPrice = NormalizeDouble(Price + TakeProfitSize, SymbolDigits);
-         success = Trade.PositionOpen(CurrentSymbol, OrderType, LotSize, Price, StopLossPrice, TakeProfitPrice, "BUY" + __FILE__);
+         success = Trade.PositionOpen(CurrentSymbol, OrderType, LotSize, Price, StopLossPrice, TakeProfitPrice, "BUY - " + __FILE__);
       } 
       else if (OrderType == ORDER_TYPE_SELL) {
       //   if(!VaRCalc(CurrentSymbol, -LotSize)) return false;
          Price           = NormalizeDouble(SymbolInfoDouble(CurrentSymbol, SYMBOL_BID), SymbolDigits);
          StopLossPrice   = NormalizeDouble(Price + StopLossSize, SymbolDigits);
          TakeProfitPrice = NormalizeDouble(Price - TakeProfitSize, SymbolDigits);
-         success = Trade.PositionOpen(CurrentSymbol, OrderType, LotSize, Price, StopLossPrice, TakeProfitPrice, "SELL" + __FILE__);
+         success = Trade.PositionOpen(CurrentSymbol, OrderType, LotSize, Price, StopLossPrice, TakeProfitPrice, "SELL - " + __FILE__);
       }
       else if (OrderType == ORDER_TYPE_BUY_STOP) {
       //   if(!VaRCalc(CurrentSymbol, LotSize)) return false;
          Price           = iHigh(CurrentSymbol, TradeTimeframe, 1);
          StopLossPrice   = NormalizeDouble(Price - StopLossSize, SymbolDigits);
          TakeProfitPrice = NormalizeDouble(Price + TakeProfitSize, SymbolDigits);
-         success = Trade.BuyStop(LotSize, Price, CurrentSymbol, StopLossPrice, TakeProfitPrice, ORDER_TIME_GTC, 0, "BUY STOP" + __FILE__);
+         success = Trade.BuyStop(LotSize, Price, CurrentSymbol, StopLossPrice, TakeProfitPrice, ORDER_TIME_GTC, 0, "BUY STOP - " + __FILE__);
       } 
       else if (OrderType == ORDER_TYPE_SELL_STOP) {
       //   if(!VaRCalc(CurrentSymbol, -LotSize)) return false;
          Price           = iLow(CurrentSymbol, TradeTimeframe, 1);
          StopLossPrice   = NormalizeDouble(Price + StopLossSize, SymbolDigits);
          TakeProfitPrice = NormalizeDouble(Price - TakeProfitSize, SymbolDigits);
-         success = Trade.SellStop(LotSize, Price, CurrentSymbol, StopLossPrice, TakeProfitPrice, ORDER_TIME_GTC, 0, "SELL SROP"+ __FILE__);
+         success = Trade.SellStop(LotSize, Price, CurrentSymbol, StopLossPrice, TakeProfitPrice, ORDER_TIME_GTC, 0, "SELL SROP - "+ __FILE__);
       }
       //Print( NormalizeDouble(SymbolInfoDouble(CurrentSymbol, SYMBOL_BID), SymbolDigits), " / ", CurrentSymbol," / ", OrderType," / ", LotSize," / ", Price," / ", StopLossPrice," / ", TakeProfitPrice," / ", success);
       
@@ -839,7 +837,7 @@ bool ClosePositionByTimer(int SymbolLoop, int PosTimer){
    
    //Ahora puedo calcular la diferencia de enteros.
    int Difference = CurrentMinutes - OpenMinutes;
-         
+
    //Print ("### OrderTicket: ", ticket);
    //Print ("### OrderOpenTime: ",OrderOpenTime);
    //Print ("### LocalTime: ",LocalTime);
