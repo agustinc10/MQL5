@@ -355,13 +355,13 @@ double CalculateLots(string symbol, double slDistance)      // Pass lots as a re
 
 // Check Stop Levels    
 // (some brokers have a stop level so you cannot set the sl too close to the current price)
-bool Checkstoplevels(double sldistance, double tpdistance){
-   long level = SymbolInfoInteger(_Symbol, SYMBOL_TRADE_STOPS_LEVEL);
-   if (level != 0 && sldistance <= level * _Point) {
+bool Checkstoplevels(string symbol, double sldistance, double tpdistance){
+   long level = SymbolInfoInteger(symbol, SYMBOL_TRADE_STOPS_LEVEL);
+   if (level != 0 && sldistance <= level * SymbolInfoDouble(symbol, SYMBOL_POINT)) {
       Print("ERROR_ac: Failed to place sl because it is inside stop level");
       return false;                                                        // return para que salga de la función y no cree la orden sin sl o sin tp 
    }
-   if (level != 0 && tpdistance <= level * _Point) {
+   if (level != 0 && tpdistance <= level * SymbolInfoDouble(symbol, SYMBOL_POINT)) {
       Print("ERROR_ac: Failed to place tp because it is inside stop level");
       return false;
    }
@@ -520,23 +520,21 @@ bool IsMarketOpen(string symbol, datetime time) {
 }
 
 
-// https://www.youtube.com/watch?v=3-yKhOQlWvc
-
-// Para buscar hacia los dos lados
+//Search Peak looking for candles to the left and right // https://www.youtube.com/watch?v=3-yKhOQlWvc
 int FindPeak(string symbol, int mode, int count, int startBar, ENUM_TIMEFRAMES Timeframe){
    if(mode != MODE_HIGH && mode != MODE_LOW) return -1;
    
    int currentBar = startBar;    // this will be the counter
-   int foundBar = FindeNextPeak(symbol, mode, count*2+1, currentBar - count, Timeframe);      // count*2 to count to each side +1 to account for the currentbar
+   int foundBar = FindNextPeak(symbol, mode, count*2+1, currentBar - count, Timeframe);      // count*2 to count to each side +1 to account for the currentbar
    while (foundBar != currentBar){
-      currentBar = FindeNextPeak(symbol, mode, count, currentBar + 1, Timeframe);
-      foundBar = FindeNextPeak(symbol, mode, count*2+1, currentBar - count, Timeframe);      // count*2 to count to each side +1 to account for the currentbar
+      currentBar = FindNextPeak(symbol, mode, count, currentBar + 1, Timeframe);
+      foundBar = FindNextPeak(symbol, mode, count*2+1, currentBar - count, Timeframe);      // count*2 to count to each side +1 to account for the currentbar
    }
    return(currentBar);
 }
 
 //Search Peak in "count" bars to the left of startBar 
-int FindeNextPeak(string symbol, int mode, int count, int startBar, ENUM_TIMEFRAMES Timeframe){
+int FindNextPeak(string symbol, int mode, int count, int startBar, ENUM_TIMEFRAMES Timeframe){
    if (startBar<0){     // to make sure you always start in bar 0
       count += startBar;
       startBar = 0;
@@ -547,14 +545,18 @@ int FindeNextPeak(string symbol, int mode, int count, int startBar, ENUM_TIMEFRA
          );
 }
 
-// Find Higher Highs and Higher Lows
-int LastHigh(string symbol, ENUM_TIMEFRAMES Timeframe, int shoulder, string &H1, string &H2){
+// Find Higher Highs and Lower Lows VALUES
+int LastHighCandle(string symbol, ENUM_TIMEFRAMES Timeframe, int shoulder, int peak, string &H1, string &H2, bool draw){
+  
    int High1 = FindPeak(symbol, MODE_HIGH, shoulder, 1, Timeframe);
    int High2 = FindPeak(symbol, MODE_HIGH, shoulder, High1 + 1, Timeframe);
    int High3 = FindPeak(symbol, MODE_HIGH, shoulder, High2 + 1, Timeframe);
+   int High4 = FindPeak(symbol, MODE_HIGH, shoulder, High3 + 1, Timeframe);
+  
    double High1value = iHigh(symbol, Timeframe, High1);
    double High2value = iHigh(symbol, Timeframe, High2);
    double High3value = iHigh(symbol, Timeframe, High3);
+   double High4value = iHigh(symbol, Timeframe, High4);
 
    if(High1value > High2value)
       H1 = "HH";
@@ -564,35 +566,50 @@ int LastHigh(string symbol, ENUM_TIMEFRAMES Timeframe, int shoulder, string &H1,
       H2 = "HH";
    else 
       H2 = "LH";
-   /*
-   ObjectsDeleteAll(0, "arrowup");        
-   ObjectCreate(0,"arrowup1",OBJ_ARROW_DOWN,0,iTime(symbol, Timeframe, High1),High1value); 
-   ObjectSetInteger(0,"arrowup1",OBJPROP_ANCHOR,ANCHOR_BOTTOM); // set anchor type
-   ObjectSetInteger(0,"arrowup1",OBJPROP_COLOR,clrLimeGreen);    // set a sign color 
-   ObjectSetInteger(0,"arrowup1",OBJPROP_WIDTH,2);              // set the sign size  
-   
-   ObjectCreate(0,"arrowup2",OBJ_ARROW_DOWN,0,iTime(symbol, Timeframe, High2),High2value); 
-   ObjectSetInteger(0,"arrowup2",OBJPROP_ANCHOR,ANCHOR_BOTTOM); 
-   ObjectSetInteger(0,"arrowup2",OBJPROP_COLOR,clrLimeGreen); 
-   ObjectSetInteger(0,"arrowup2",OBJPROP_WIDTH,2);
 
-   ObjectCreate(0,"arrowup3",OBJ_ARROW_DOWN,0,iTime(symbol, Timeframe, High3),High3value); 
-   ObjectSetInteger(0,"arrowup3",OBJPROP_ANCHOR,ANCHOR_BOTTOM); 
-   ObjectSetInteger(0,"arrowup3",OBJPROP_COLOR,clrLimeGreen); 
-   ObjectSetInteger(0,"arrowup3",OBJPROP_WIDTH,2);
-   */
-   return High1;
+   if (draw == true){
+      ObjectsDeleteAll(0, "arrowup");        
+      ObjectCreate(0,"arrowup1",OBJ_ARROW_DOWN,0,iTime(symbol, Timeframe, High1),High1value); 
+      ObjectSetInteger(0,"arrowup1",OBJPROP_ANCHOR,ANCHOR_BOTTOM); // set anchor type
+      ObjectSetInteger(0,"arrowup1",OBJPROP_COLOR,clrLimeGreen);    // set a sign color 
+      ObjectSetInteger(0,"arrowup1",OBJPROP_WIDTH,2);              // set the sign size  
+      
+      ObjectCreate(0,"arrowup2",OBJ_ARROW_DOWN,0,iTime(symbol, Timeframe, High2),High2value); 
+      ObjectSetInteger(0,"arrowup2",OBJPROP_ANCHOR,ANCHOR_BOTTOM); 
+      ObjectSetInteger(0,"arrowup2",OBJPROP_COLOR,clrLimeGreen); 
+      ObjectSetInteger(0,"arrowup2",OBJPROP_WIDTH,2);
+
+      ObjectCreate(0,"arrowup3",OBJ_ARROW_DOWN,0,iTime(symbol, Timeframe, High3),High3value); 
+      ObjectSetInteger(0,"arrowup3",OBJPROP_ANCHOR,ANCHOR_BOTTOM); 
+      ObjectSetInteger(0,"arrowup3",OBJPROP_COLOR,clrLimeGreen); 
+      ObjectSetInteger(0,"arrowup3",OBJPROP_WIDTH,2);
+
+      ObjectCreate(0,"arrowup4",OBJ_ARROW_DOWN,0,iTime(symbol, Timeframe, High4),High4value); 
+      ObjectSetInteger(0,"arrowup4",OBJPROP_ANCHOR,ANCHOR_BOTTOM); 
+      ObjectSetInteger(0,"arrowup4",OBJPROP_COLOR,clrLimeGreen); 
+      ObjectSetInteger(0,"arrowup4",OBJPROP_WIDTH,2);
+      
+      //ObjectsDeleteAll(0, "Highline");        
+      //bool lineL2 = HLineCreate(0,"Highline2",0,High2value, clrGreen);
+      //bool lineL3 = HLineCreate(0,"Highline3",0,High3value, clrGreen);
+
+   }
+   if (peak == 3) return High3;
+   else if (peak == 2) return High2;
+   else return High1;
 }
 
-int LastLow(string symbol, ENUM_TIMEFRAMES Timeframe, int shoulder, string &L1, string &L2){
+int LastLowCandle(string symbol, ENUM_TIMEFRAMES Timeframe, int shoulder, int peak, string &L1, string &L2, bool draw){
 
    int Low1 = FindPeak(symbol, MODE_LOW, shoulder, 1, Timeframe);
    int Low2 = FindPeak(symbol, MODE_LOW, shoulder, Low1 + 1, Timeframe);
    int Low3 = FindPeak(symbol, MODE_LOW, shoulder, Low2 + 1, Timeframe);
+   int Low4 = FindPeak(symbol, MODE_LOW, shoulder, Low3 + 1, Timeframe);
    
    double Low1value = iLow(symbol, Timeframe, Low1);
    double Low2value = iLow(symbol, Timeframe, Low2);
    double Low3value = iLow(symbol, Timeframe, Low3);      
+   double Low4value = iLow(symbol, Timeframe, Low4);      
    
    if(Low1value < Low2value)
       L1 = "LL";
@@ -602,23 +619,165 @@ int LastLow(string symbol, ENUM_TIMEFRAMES Timeframe, int shoulder, string &L1, 
       L2 = "LL";
    else 
       L2 = "HL";
-   /*
-   ObjectsDeleteAll(0, "arrowdown");        
-   ObjectCreate(0,"arrowdown1",OBJ_ARROW_UP,0,iTime(symbol, Timeframe, Low1),Low1value); 
-   ObjectSetInteger(0,"arrowdown1",OBJPROP_ANCHOR,ANCHOR_TOP); // set anchor type
-   ObjectSetInteger(0,"arrowdown1",OBJPROP_COLOR,clrRed);    // set a sign color 
-   ObjectSetInteger(0,"arrowdown1",OBJPROP_WIDTH,2);              // set the sign size  
-   
-   ObjectCreate(0,"arrowdown2",OBJ_ARROW_UP,0,iTime(symbol, Timeframe, Low2),Low2value); 
-   ObjectSetInteger(0,"arrowdown2",OBJPROP_ANCHOR,ANCHOR_TOP); 
-   ObjectSetInteger(0,"arrowdown2",OBJPROP_COLOR,clrRed); 
-   ObjectSetInteger(0,"arrowdown2",OBJPROP_WIDTH,2);
 
-   ObjectCreate(0,"arrowdown3",OBJ_ARROW_UP,0,iTime(symbol, Timeframe, Low3),Low3value); 
-   ObjectSetInteger(0,"arrowdown3",OBJPROP_ANCHOR,ANCHOR_TOP); 
-   ObjectSetInteger(0,"arrowdown3",OBJPROP_COLOR,clrRed); 
-   ObjectSetInteger(0,"arrowdown3",OBJPROP_WIDTH,2);
-   */
-   return Low1;
+   if (draw == true){
+      ObjectsDeleteAll(0, "arrowdown");        
+      ObjectCreate(0,"arrowdown1",OBJ_ARROW_UP,0,iTime(symbol, Timeframe, Low1),Low1value); 
+      ObjectSetInteger(0,"arrowdown1",OBJPROP_ANCHOR,ANCHOR_TOP); // set anchor type
+      ObjectSetInteger(0,"arrowdown1",OBJPROP_COLOR,clrRed);    // set a sign color 
+      ObjectSetInteger(0,"arrowdown1",OBJPROP_WIDTH,2);              // set the sign size  
+      
+      ObjectCreate(0,"arrowdown2",OBJ_ARROW_UP,0,iTime(symbol, Timeframe, Low2),Low2value); 
+      ObjectSetInteger(0,"arrowdown2",OBJPROP_ANCHOR,ANCHOR_TOP); 
+      ObjectSetInteger(0,"arrowdown2",OBJPROP_COLOR,clrRed); 
+      ObjectSetInteger(0,"arrowdown2",OBJPROP_WIDTH,2);
+
+      ObjectCreate(0,"arrowdown3",OBJ_ARROW_UP,0,iTime(symbol, Timeframe, Low3),Low3value); 
+      ObjectSetInteger(0,"arrowdown3",OBJPROP_ANCHOR,ANCHOR_TOP); 
+      ObjectSetInteger(0,"arrowdown3",OBJPROP_COLOR,clrRed); 
+      ObjectSetInteger(0,"arrowdown3",OBJPROP_WIDTH,2);
+
+      ObjectCreate(0,"arrowdown4",OBJ_ARROW_UP,0,iTime(symbol, Timeframe, Low4),Low4value); 
+      ObjectSetInteger(0,"arrowdown4",OBJPROP_ANCHOR,ANCHOR_TOP); 
+      ObjectSetInteger(0,"arrowdown4",OBJPROP_COLOR,clrRed); 
+      ObjectSetInteger(0,"arrowdown4",OBJPROP_WIDTH,2);
+
+      //ObjectsDeleteAll(0, "Lowline");        
+      //bool lineL2 = HLineCreate(0,"Highline2",0,Low2value, clrGreen);
+      //bool lineL3 = HLineCreate(0,"Highline3",0,Low3value, clrGreen);
+
+   }
+   if (peak == 3) return Low3;
+   else if (peak == 2) return Low2;
+   else return Low1;
 }
+
+// Find Higher Highs and Lower Lows VALUES
+double LastPeakValue(string symbol, ENUM_TIMEFRAMES Timeframe, int mode, int shoulder, int peakNumber, double &PeakValues[], bool draw){
+   if(mode != MODE_HIGH && mode != MODE_LOW) return -1;                                // Only High and Low values allowed
+   if (peakNumber < 1) return -1;                                                                   
+
+   int Peaks[];                                                                        // Arrray to store candle number of peak
+   //double PeakValues[];                                                                
+   ArrayResize(Peaks, peakNumber);
+   ArrayResize(PeakValues, peakNumber);                                                      // Array to stor values of peaks
+
+   Peaks[0] = FindPeak(symbol, mode, shoulder, 1, Timeframe);                          // Peaks[0] is the closest peak (may be not confirmed)
+   if (mode == MODE_HIGH)
+      PeakValues[0] = iHigh(symbol, Timeframe, Peaks[0]);                           // Find previous peaks values
+   else if (mode == MODE_LOW)
+      PeakValues[0] = iLow(symbol, Timeframe, Peaks[0]);
+
+   for (int i = 1; i < peakNumber; i++){                          
+      Peaks[i] = FindPeak(symbol, mode, shoulder, Peaks[i-1] + 1, Timeframe);          // Find previous peaks
+      if (mode == MODE_HIGH)
+         PeakValues[i] = iHigh(symbol, Timeframe, Peaks[i]);                           // Find previous peaks values
+      else if (mode == MODE_LOW)
+         PeakValues[i] = iLow(symbol, Timeframe, Peaks[i]);
+   }
+   /*
+   if (draw == true){
+      if (mode == MODE_HIGH){
+         ObjectsDeleteAll(0, "Resistance");        
+         for (int i = 1; i <= peakNumber; i++){                          
+            HLineCreate(0,"Resistance"+IntegerToString(i),0,PeakValues[i], clrGreen);
+         }
+      }
+      if (mode == MODE_LOW){   
+         ObjectsDeleteAll(0, "Support");        
+         for (int i = 1; i <= peakNumber; i++){                          
+            HLineCreate(0,"Support"+IntegerToString(i),0,PeakValues[i], clrBlue);
+         }
+      }
+   }
+   */
+   return PeakValues[peakNumber - 1];                                                           // Returns value of Peak (last value of array)
+}
+
+//void drawSyR ()
+
+// Draw Horizontal line
+bool HLineCreate(const long            chart_ID=0,        // chart's ID 
+                 const string          name="HLine",      // line name 
+                 const int             sub_window=0,      // subwindow index 
+                 double                price=0,           // line price 
+                 const color           clr=clrRed,        // line color 
+                 const ENUM_LINE_STYLE style=STYLE_SOLID, // line style 
+                 const int             width=1,           // line width 
+                 const bool            back=false,        // in the background 
+                 const bool            selection=true,    // highlight to move 
+                 const bool            hidden=true,       // hidden in the object list 
+                 const long            z_order=0)         // priority for mouse click 
+{ 
+//--- if the price is not set, set it at the current Bid price level 
+   if(!price) 
+      price=SymbolInfoDouble(Symbol(),SYMBOL_BID); 
+//--- reset the error value 
+   ResetLastError(); 
+//--- create a horizontal line 
+   if(!ObjectCreate(chart_ID,name,OBJ_HLINE,sub_window,0,price)) 
+     { 
+      Print(__FUNCTION__, 
+            ": failed to create a horizontal line! Error code = ",GetLastError()); 
+      return(false); 
+     } 
+//--- set line color 
+   ObjectSetInteger(chart_ID,name,OBJPROP_COLOR,clr); 
+//--- set line display style 
+   ObjectSetInteger(chart_ID,name,OBJPROP_STYLE,style); 
+//--- set line width 
+   ObjectSetInteger(chart_ID,name,OBJPROP_WIDTH,width); 
+//--- display in the foreground (false) or background (true) 
+   ObjectSetInteger(chart_ID,name,OBJPROP_BACK,back); 
+//--- enable (true) or disable (false) the mode of moving the line by mouse 
+//--- when creating a graphical object using ObjectCreate function, the object cannot be 
+//--- highlighted and moved by default. Inside this method, selection parameter 
+//--- is true by default making it possible to highlight and move the object 
+   ObjectSetInteger(chart_ID,name,OBJPROP_SELECTABLE,selection); 
+   ObjectSetInteger(chart_ID,name,OBJPROP_SELECTED,selection); 
+//--- hide (true) or display (false) graphical object name in the object list 
+   ObjectSetInteger(chart_ID,name,OBJPROP_HIDDEN,hidden); 
+//--- set the priority for receiving the event of a mouse click in the chart 
+   ObjectSetInteger(chart_ID,name,OBJPROP_ZORDER,z_order); 
+//--- successful execution 
+   return(true); 
+} 
+
+// Move horizontal line
+bool HLineMove(const long   chart_ID=0,   // chart's ID 
+               const string name="HLine", // line name 
+               double       price=0)      // line price 
+  { 
+//--- if the line price is not set, move it to the current Bid price level 
+   if(!price) 
+      price=SymbolInfoDouble(Symbol(),SYMBOL_BID); 
+//--- reset the error value 
+   ResetLastError(); 
+//--- move a horizontal line 
+   if(!ObjectMove(chart_ID,name,0,0,price)) 
+     { 
+      Print(__FUNCTION__, 
+            ": failed to move the horizontal line! Error code = ",GetLastError()); 
+      return(false); 
+     } 
+//--- successful execution 
+   return(true); 
+  } 
+
+// Delete a horizontal line 
+bool HLineDelete(const long   chart_ID=0,   // chart's ID 
+                 const string name="HLine") // line name 
+  { 
+//--- reset the error value 
+   ResetLastError(); 
+//--- delete a horizontal line 
+   if(!ObjectDelete(chart_ID,name)) 
+     { 
+      Print(__FUNCTION__, 
+            ": failed to delete a horizontal line! Error code = ",GetLastError()); 
+      return(false); 
+     } 
+//--- successful execution 
+   return(true); 
+  } 
 

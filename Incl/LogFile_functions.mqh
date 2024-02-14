@@ -51,7 +51,7 @@ if(DiagnosticLogLevel >= 1){
    outputFileHandle = FileOpen(outputFileName, FILE_WRITE|FILE_CSV, "\t");
    //FileWrite(outputFileHandle, "LIST OF DEALS IS BACKTEST");   
    FileWrite(outputFileHandle, "TICKET", "DEAL_ORDER", "DEAL_POSITION_ID", "DEAL_SYMBOL", "DEAL_TYPE", "OPEN_POSITIONS", 
-                                 "DEAL_ENTRY", "DEAL_REASON", "DEAL_OPEN_TIME", "DEAL_CLOSE_TIME", "DEAL_OPEN_TIME_HOUR", "DEAL_CLOSE_TIME_HOUR", "DEAL_DURATION(MIN)", "DEAL_OPEN_DAY_OF_WEEK", "DEAL_CLOSE_DAY_OF_WEEK", 
+                                 "DEAL_ENTRY", "DEAL_REASON", "DEAL_OPEN_TIME", "DEAL_CLOSE_TIME", "DEAL_OPEN_TIME_HOUR", "DEAL_CLOSE_TIME_HOUR", "DEAL_DURATION(HR)", "DEAL_OPEN_DAY_OF_WEEK", "DEAL_CLOSE_DAY_OF_WEEK", 
                                  "DEAL_VOLUME", "DEAL_PRICE", "DEAL_SL", "DEAL_TP", "DEAL_COMMISSION", "DEAL_SWAP", "DEAL_PROFIT", "DEAL_NET_PROFIT", "TRADE_RESULT",
                                  "DEAL_R_MULTIPLE", "DEAL_MAGIC", "DEAL_COMMENT");
    Print("LOG FILE deal_log.csv OPENED");
@@ -199,3 +199,5 @@ void EquityMainData(int DiagnosticLogLevel, int eqFileHandle){
       PreviousHourlyTasksRun = currentDateTime.hour;
    }
 }
+
+

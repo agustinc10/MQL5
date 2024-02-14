@@ -55,13 +55,6 @@ input group "==== Optimization Mode ===="
 input ENUM_CUSTOM_PERF_CRITERIUM_METHOD   CustomPerfCriterium    = COEFF_CORRELATION_R;      //Custom Performance Criterium
 input int                                 minTradesToConsider    = 250;                      //Min Trades to consider results
 
-//Globals
-int      PreviousHourlyTasksRun  = -1;          // Set to -1 so that hourly tasks run immediately
-double   EquityHistoryArray[];                  // Used to store equity at intermittent time intervals when using the Strategy Tester in order to calculate CAGR/MeanDD perf metric
-double   StartingEquity;                        // Stores the Starting Equity (i.e. the deposit amount at the beginning of the backtest)
-datetime BackTestFirstDate;                     // Used in the CAGR/MeanDD Calc
-datetime BackTestFinalDate;                     // Used in the CAGR/MeanDD Calc
-
 int OnInitCustomMetrics(){
    //## YOUR OWN CODE HERE ##
 
